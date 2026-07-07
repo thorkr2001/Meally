@@ -3,8 +3,9 @@
 import { useState } from "react";
 import type { Meal } from "@prisma/client";
 import { SubmitButton } from "@/components/SubmitButton";
+import { ConfirmForm } from "@/components/ConfirmForm";
 import { MealRecipeInfo } from "@/components/MealRecipeInfo";
-import { dislikeIngredient, regenerateDayAction } from "@/app/meal-plan/actions";
+import { dislikeIngredient, regenerateDayAction, removeMeal } from "@/app/meal-plan/actions";
 
 const DAY_LABELS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 const DAY_NAMES = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
@@ -86,6 +87,20 @@ export function MealPlanDays({
                   Sugar {meal.sugarG}g · Fiber {meal.fiberG}g
                 </p>
                 <MealRecipeInfo sourceUrl={meal.sourceUrl} notes={meal.notes} />
+
+                <ConfirmForm
+                  action={removeMeal}
+                  confirmMessage={`Remove "${meal.name}" from your plan? This can't be undone.`}
+                  className="mt-2 text-right"
+                >
+                  <input type="hidden" name="mealId" value={meal.id} />
+                  <SubmitButton
+                    pendingText="Removing..."
+                    className="text-xs font-medium text-ink-faint hover:text-coral-text"
+                  >
+                    Remove meal
+                  </SubmitButton>
+                </ConfirmForm>
               </div>
             );
           })}

@@ -113,6 +113,21 @@ export async function dislikeIngredient(formData: FormData) {
   revalidatePath("/meal-plan");
 }
 
+// Removes a single meal entirely (no replacement) — used from both /today
+// and /meal-plan, which read the same underlying Meal rows, so deleting it
+// here makes it disappear from both automatically. Disconnects rather than
+// deletes any of today's logs for it, consistent with every other
+// plan-mutating action, so already-eaten history isn't silently erased.
+export async function removeMeal(formData: FormData) {
+  const mealId = String(formData.get("mealId"));
+
+  await db.$transaction([disconnectMealLogs([mealId]), db.meal.delete({ where: { id: mealId } })]);
+
+  revalidatePath("/today");
+  revalidatePath("/meal-plan");
+  revalidatePath("/profile");
+}
+
 export async function regenerateDayAction(formData: FormData) {
   const dayId = String(formData.get("dayId"));
   const feedback = String(formData.get("feedback") ?? "").trim();

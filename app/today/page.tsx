@@ -5,10 +5,12 @@ import { computeStreak, currentDayOfWeek } from "@/lib/streaks";
 import { startOfToday } from "@/lib/meals";
 import { StatRing } from "@/components/StatRing";
 import { SubmitButton } from "@/components/SubmitButton";
+import { ConfirmForm } from "@/components/ConfirmForm";
 import { PortionLogger } from "@/components/PortionLogger";
 import { MealRecipeInfo } from "@/components/MealRecipeInfo";
 import { FlameIcon } from "@/components/FlameIcon";
 import { logMeal, unlogMeal, importRecipeAction, logQuickMeal, removeMealLog } from "./actions";
+import { removeMeal } from "@/app/meal-plan/actions";
 
 export const dynamic = "force-dynamic";
 
@@ -133,6 +135,20 @@ export default async function TodayPage() {
                     Import
                   </SubmitButton>
                 </form>
+
+                <ConfirmForm
+                  action={removeMeal}
+                  confirmMessage={`Remove "${meal.name}" from your plan? This can't be undone.`}
+                  className="mt-2 text-right"
+                >
+                  <input type="hidden" name="mealId" value={meal.id} />
+                  <SubmitButton
+                    pendingText="Removing..."
+                    className="text-xs font-medium text-ink-faint hover:text-coral-text"
+                  >
+                    Remove meal
+                  </SubmitButton>
+                </ConfirmForm>
               </div>
             );
           })
