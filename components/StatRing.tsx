@@ -25,10 +25,14 @@ export function StatRing({
   const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
+    let timeout: ReturnType<typeof setTimeout> | undefined;
     const raf = requestAnimationFrame(() => {
-      setTimeout(() => setMounted(true), 80);
+      timeout = setTimeout(() => setMounted(true), 80);
     });
-    return () => cancelAnimationFrame(raf);
+    return () => {
+      cancelAnimationFrame(raf);
+      if (timeout) clearTimeout(timeout);
+    };
   }, []);
 
   const pct = target > 0 ? Math.min(value / target, 1) : 0;

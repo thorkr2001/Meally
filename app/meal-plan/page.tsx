@@ -12,6 +12,10 @@ import { ConfirmForm } from "@/components/ConfirmForm";
 import { MealPlanDays } from "@/components/MealPlanDays";
 
 export const dynamic = "force-dynamic";
+// Full-week generation/revision runs a web_search research pass (up to 10
+// searches) before the forced-tool call that returns the plan — comfortably
+// past most serverless platforms' default function timeout without this.
+export const maxDuration = 60;
 
 export default async function MealPlanPage() {
   const profile = await getProfile();

@@ -1,6 +1,12 @@
 import { redirect } from "next/navigation";
 import { db } from "@/lib/db";
-import { getActiveMealPlan, getActiveNutritionPlan, getProfile } from "@/lib/session";
+import {
+  getActiveMealPlan,
+  getActiveNutritionPlan,
+  getOrphanedMealLogs,
+  getProfile,
+  getRecentLoggedDates,
+} from "@/lib/session";
 import { computeStreak, currentDayOfWeek } from "@/lib/streaks";
 import { startOfToday } from "@/lib/meals";
 import { StatRing } from "@/components/StatRing";
@@ -13,6 +19,10 @@ import { logMeal, unlogMeal, importRecipeAction, logQuickMeal, removeMealLog } f
 import { removeMeal } from "@/app/meal-plan/actions";
 
 export const dynamic = "force-dynamic";
+// importRecipeAction's web_fetch + logQuickMeal's estimate call can both run
+// long enough to need headroom past most serverless platforms' default
+// function timeout.
+export const maxDuration = 60;
 
 function greeting(): string {
   const hour = new Date().getHours();
@@ -34,18 +44,13 @@ export default async function TodayPage() {
   const today = startOfToday();
   const tomorrow = new Date(today.getTime() + 86400000);
 
-  const [todaysLogs, allLogs] = await Promise.all([
+  const [todaysLogs, allLogs, orphanedLogs] = await Promise.all([
     db.mealLog.findMany({ where: { loggedAt: { gte: today, lt: tomorrow } } }),
-    db.mealLog.findMany({ select: { loggedAt: true } }),
+    getRecentLoggedDates(),
+    getOrphanedMealLogs(),
   ]);
   const loggedMealIds = new Set(todaysLogs.map((l) => l.mealId).filter(Boolean));
   const streak = computeStreak(allLogs.map((l) => l.loggedAt));
-
-  // A log's Meal can be deleted out from under it (e.g. the day got
-  // regenerated after logging) — disconnectMealLogs nulls mealId to preserve
-  // the log rather than deleting it, so it still counts toward today's
-  // totals but has no card to show/undo it from. Surface those separately.
-  const orphanedLogs = todaysLogs.filter((l) => l.mealId === null);
 
   const totals = todaysLogs.reduce(
     (acc, log) => ({
@@ -187,16 +192,19 @@ export default async function TodayPage() {
 
       {orphanedLogs.length > 0 && (
         <div className="mt-5 rounded-2xl bg-white p-4">
-          <p className="text-[13px] font-semibold text-ink-soft">Logged earlier, no longer on today&apos;s plan</p>
+          <p className="text-[13px] font-semibold text-ink-soft">Logged meals no longer on your plan</p>
           <p className="mt-0.5 text-xs text-ink-faint">
-            These still count toward your totals above. Remove any that shouldn&apos;t.
+            Their meal was later regenerated, but the log itself was kept so your history stays accurate — each
+            still counts toward the day it was logged. Remove any that shouldn&apos;t.
           </p>
           <div className="mt-3 flex flex-col gap-2">
             {orphanedLogs.map((log) => (
               <div key={log.id} className="flex items-center justify-between gap-3 border-t border-border-light pt-2 first:border-none first:pt-0">
                 <div>
                   <p className="text-sm font-medium text-ink">{log.name}</p>
-                  <p className="text-xs text-ink-faint">{log.calories} kcal</p>
+                  <p className="text-xs text-ink-faint">
+                    {log.calories} kcal · {log.loggedAt.toLocaleDateString(undefined, { month: "short", day: "numeric" })}
+                  </p>
                 </div>
                 <form action={removeMealLog}>
                   <input type="hidden" name="logId" value={log.id} />

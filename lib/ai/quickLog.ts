@@ -12,7 +12,7 @@ const RETURN_QUICK_MEAL_TOOL: Anthropic.Tool = {
 export async function estimateQuickMeal(description: string): Promise<MealResult> {
   const prompt = `A user just ate this and wants to quickly log it: "${description}"
 
-Classify it as BREAKFAST, LUNCH, DINNER, or SNACK based on what's described (infer from context, e.g. eggs and toast is usually BREAKFAST, a small item between meals is SNACK). Give your best realistic nutrition estimate (calories, protein, carbs, fat, sugar, fiber) for a typical portion unless an amount was stated, and list its rough ingredients. Call return_quick_meal with the result.`;
+Classify it as BREAKFAST, LUNCH, DINNER, or SNACK based on what's described (infer from context, e.g. eggs and toast is usually BREAKFAST, a small item between meals is SNACK). Give your best realistic nutrition estimate (calories, protein, carbs, fat, sugar, fiber) for a typical portion unless an amount was stated, list its rough ingredients, and estimate prepMinutes (realistic active prep + cook time for this item — e.g. a piece of fruit is ~0, a sandwich is ~5, a cooked dish is 15+). Call return_quick_meal with the result.`;
 
   const response = await anthropic.messages.create({
     model: MEAL_PLAN_MODEL,

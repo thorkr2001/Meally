@@ -39,6 +39,29 @@ export async function getDislikedNames(profileId: string): Promise<string[]> {
   return rows.map((r) => r.name);
 }
 
+// Streaks realistically span at most this many consecutive days; bounding
+// the query keeps it cheap regardless of how much logging history piles up
+// over months/years of use, instead of re-scanning every MealLog ever
+// written on every /today and /profile page load.
+const STREAK_LOOKBACK_DAYS = 400;
+
+export function getRecentLoggedDates() {
+  const cutoff = new Date();
+  cutoff.setDate(cutoff.getDate() - STREAK_LOOKBACK_DAYS);
+  return db.mealLog.findMany({ where: { loggedAt: { gte: cutoff } }, select: { loggedAt: true } });
+}
+
+/**
+ * MealLog rows whose Meal was deleted out from under them (a regenerated
+ * day/plan disconnects rather than deletes the log, to preserve history —
+ * see disconnectMealLogs). Not scoped to today: the meal that got deleted
+ * could have been on any day, so a log from last week is just as orphaned
+ * and just as much in need of a place the user can see and remove it from.
+ */
+export function getOrphanedMealLogs() {
+  return db.mealLog.findMany({ where: { mealId: null }, orderBy: { loggedAt: "desc" } });
+}
+
 export interface ProfileConstraints {
   conditions: string[];
   dietaryPreferences: string[];

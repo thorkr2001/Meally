@@ -1,6 +1,6 @@
 import { redirect } from "next/navigation";
 import { db } from "@/lib/db";
-import { getProfile, getActiveNutritionPlan } from "@/lib/session";
+import { getProfile, getActiveNutritionPlan, getRecentLoggedDates } from "@/lib/session";
 import { computeStreak } from "@/lib/streaks";
 import { evaluateDay, groupLogsByDay, TRACKED_DAYS } from "@/lib/progress";
 import { WeightChart } from "@/components/WeightChart";
@@ -29,7 +29,7 @@ export default async function ProfilePage() {
     where: { profileId: profile.id },
     orderBy: { loggedAt: "asc" },
   });
-  const allMealLogs = await db.mealLog.findMany({ select: { loggedAt: true } });
+  const allMealLogs = await getRecentLoggedDates();
   const dietaryPreferences: string[] = JSON.parse(profile.dietaryPreferences);
   const dislikedIngredients = await db.dislikedIngredient.findMany({
     where: { profileId: profile.id },

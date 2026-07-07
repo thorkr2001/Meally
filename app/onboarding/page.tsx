@@ -1,6 +1,11 @@
 import { createProfile } from "./actions";
 import { SubmitButton } from "@/components/SubmitButton";
 
+// createProfile's nutrition-plan generation does a web_search research call
+// before its forced-tool call — comfortably past most serverless platforms'
+// default function timeout, so this page's actions need explicit headroom.
+export const maxDuration = 60;
+
 const inputClass =
   "rounded-xl border-[1.5px] border-border-light px-3.5 py-2.5 text-sm font-sans focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-1";
 const labelClass = "flex flex-col gap-1.5 text-[13px] font-semibold text-ink";
