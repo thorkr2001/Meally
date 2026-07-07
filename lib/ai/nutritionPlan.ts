@@ -26,20 +26,31 @@ const RETURN_NUTRITION_PLAN_TOOL: Anthropic.Tool = {
   },
 };
 
+// Reused verbatim on every return_nutrition_plan call (generate and revise
+// both use this tool) — putting it in `system` with a cache breakpoint lets
+// repeated calls in one session (e.g. a user iterating on feedback) serve it
+// from cache instead of reprocessing it as fresh input each time.
+const FINAL_INSTRUCTION = `Call return_nutrition_plan with the final targets and a researchNotes explanation. If the research findings include a "Sources:" list, copy it verbatim (with the real URLs) at the end of researchNotes — do not paraphrase or drop the links.`;
+
+const RESEARCH_METHOD_NOTE = `Focus on what this means for daily calorie intake, protein/carb/fat/sugar/fiber targets, and any foods or nutrients to limit or emphasize. Do at most 2-3 searches. Summarize the findings in 150 words or less, citing sources inline.`;
+
 async function researchConditions(conditions: string[]): Promise<string> {
   const messages: Anthropic.MessageParam[] = [
     {
       role: "user",
-      content: `Research current, evidence-based dietary guidance for someone managing the following condition(s): ${conditions.join(
-        ", "
-      )}. Focus on what this means for daily calorie intake, protein/carb/fat/sugar/fiber targets, and any foods or nutrients to limit or emphasize. Do at most 2-3 searches. Summarize the findings in 150 words or less, citing sources inline.`,
+      content: `Research current, evidence-based dietary guidance for someone managing the following condition(s): ${conditions.join(", ")}.`,
     },
   ];
+  const system: Anthropic.Messages.TextBlockParam[] = [
+    { type: "text", text: RESEARCH_METHOD_NOTE, cache_control: { type: "ephemeral" } },
+  ];
+  const tools: Anthropic.ToolUnion[] = [{ type: "web_search_20260209", name: "web_search", max_uses: 3 }];
 
   let response = await anthropic.messages.create({
     model: MODEL,
     max_tokens: 4096,
-    tools: [{ type: "web_search_20260209", name: "web_search", max_uses: 3 }],
+    system,
+    tools,
     messages,
   });
 
@@ -48,7 +59,8 @@ async function researchConditions(conditions: string[]): Promise<string> {
     response = await anthropic.messages.create({
       model: MODEL,
       max_tokens: 4096,
-      tools: [{ type: "web_search_20260209", name: "web_search", max_uses: 3 }],
+      system,
+      tools,
       messages,
     });
   }
@@ -108,13 +120,12 @@ ${
   researchNotes
     ? `Condition-specific research findings:\n${researchNotes}\n\nAdjust the baseline targets above as needed to reflect this guidance.`
     : "The user has no conditions requiring adjustment — use the baseline targets above as-is unless the dietary preferences warrant a small adjustment."
-}
-
-Call return_nutrition_plan with the final targets and a researchNotes explanation. If the research findings above include a "Sources:" list, copy it verbatim (with the real URLs) at the end of researchNotes — do not paraphrase or drop the links.`;
+}`;
 
   const response = await anthropic.messages.create({
     model: MODEL,
     max_tokens: 2048,
+    system: [{ type: "text", text: FINAL_INSTRUCTION, cache_control: { type: "ephemeral" } }],
     tools: [RETURN_NUTRITION_PLAN_TOOL],
     tool_choice: { type: "tool", name: "return_nutrition_plan" },
     messages: [{ role: "user", content: prompt }],
@@ -138,11 +149,12 @@ Rationale: ${current.researchNotes}
 
 The user gave this feedback: "${feedback}"
 
-Call return_nutrition_plan with a revised set of targets that addresses the feedback while keeping the plan nutritionally sound, and an updated researchNotes explanation.`;
+Produce a revised set of targets that addresses the feedback while keeping the plan nutritionally sound, and an updated researchNotes explanation.`;
 
   const response = await anthropic.messages.create({
     model: MODEL,
     max_tokens: 2048,
+    system: [{ type: "text", text: FINAL_INSTRUCTION, cache_control: { type: "ephemeral" } }],
     tools: [RETURN_NUTRITION_PLAN_TOOL],
     tool_choice: { type: "tool", name: "return_nutrition_plan" },
     messages: [{ role: "user", content: prompt }],
