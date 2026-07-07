@@ -4,7 +4,7 @@ import { usePathname } from "next/navigation";
 import { Sidebar } from "@/components/Sidebar";
 import { BottomNav } from "@/components/BottomNav";
 
-const NO_SHELL_PREFIXES = ["/onboarding", "/plan", "/login"];
+const NO_SHELL_PREFIXES = ["/onboarding", "/plan", "/login", "/signup"];
 
 export function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();

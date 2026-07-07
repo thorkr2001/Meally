@@ -1,0 +1,24 @@
+"use server";
+
+import { redirect } from "next/navigation";
+import { createClient } from "@/lib/supabase/server";
+
+export async function signup(formData: FormData) {
+  const email = String(formData.get("email") ?? "");
+  const password = String(formData.get("password") ?? "");
+
+  const supabase = await createClient();
+  const { data, error } = await supabase.auth.signUp({ email, password });
+
+  if (error) {
+    redirect(`/signup?error=${encodeURIComponent(error.message)}`);
+  }
+
+  // Email confirmation is enabled in the Supabase project: signUp succeeds
+  // but returns no session until the user clicks the confirmation link.
+  if (!data.session) {
+    redirect("/signup?confirm=1");
+  }
+
+  redirect("/");
+}

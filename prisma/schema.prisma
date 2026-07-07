@@ -47,6 +47,12 @@ enum MealType {
 
 model Profile {
   id                  String        @id @default(cuid())
+  // Supabase auth.users.id (UUID). auth.users lives in Supabase's own "auth"
+  // schema, not one Prisma introspects, so this is a plain string column with
+  // no Prisma-level relation — the link is enforced in application code, not
+  // the database. Nullable only during the userId backfill migration; every
+  // profile must have one once that's done.
+  userId              String?       @unique
   weightKg            Float
   heightCm            Float
   age                 Int
@@ -63,6 +69,7 @@ model Profile {
   nutritionPlans       NutritionPlan[]
   dislikedIngredients  DislikedIngredient[]
   progressFeedback     ProgressFeedback?
+  mealLogs             MealLog[]
 }
 
 model WeightLog {
@@ -147,6 +154,13 @@ model Meal {
 
 model MealLog {
   id         String   @id @default(cuid())
+  // Direct link to the owning profile — necessary because mealId is
+  // nullable (an orphaned log, its Meal deleted by a regeneration, keeps
+  // its history but loses the only other path back to a profile). Without
+  // this, every MealLog query across all users returns everyone's rows
+  // once there's more than one profile. Nullable only during backfill.
+  profileId  String?
+  profile    Profile? @relation(fields: [profileId], references: [id])
   mealId     String?
   meal       Meal?    @relation(fields: [mealId], references: [id])
   loggedAt   DateTime @default(now())

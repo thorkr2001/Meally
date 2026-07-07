@@ -45,9 +45,9 @@ export default async function TodayPage() {
   const tomorrow = new Date(today.getTime() + 86400000);
 
   const [todaysLogs, allLogs, orphanedLogs] = await Promise.all([
-    db.mealLog.findMany({ where: { loggedAt: { gte: today, lt: tomorrow } } }),
-    getRecentLoggedDates(),
-    getOrphanedMealLogs(),
+    db.mealLog.findMany({ where: { profileId: profile.id, loggedAt: { gte: today, lt: tomorrow } } }),
+    getRecentLoggedDates(profile.id),
+    getOrphanedMealLogs(profile.id),
   ]);
   const loggedMealIds = new Set(todaysLogs.map((l) => l.mealId).filter(Boolean));
   const streak = computeStreak(allLogs.map((l) => l.loggedAt));
@@ -121,6 +121,7 @@ export default async function TodayPage() {
                   {logged ? (
                     <form action={unlogMeal}>
                       <input type="hidden" name="mealId" value={meal.id} />
+                      <input type="hidden" name="profileId" value={profile.id} />
                       <SubmitButton
                         pendingText="Un-logging..."
                         className="rounded-full bg-primary/15 px-4 py-2 text-sm font-bold text-primary-hover"
@@ -129,7 +130,7 @@ export default async function TodayPage() {
                       </SubmitButton>
                     </form>
                   ) : (
-                    <PortionLogger mealId={meal.id} calories={meal.calories} action={logMeal} />
+                    <PortionLogger mealId={meal.id} profileId={profile.id} calories={meal.calories} action={logMeal} />
                   )}
                 </div>
 
@@ -208,6 +209,7 @@ export default async function TodayPage() {
                 </div>
                 <form action={removeMealLog}>
                   <input type="hidden" name="logId" value={log.id} />
+                  <input type="hidden" name="profileId" value={profile.id} />
                   <SubmitButton
                     pendingText="Removing..."
                     className="rounded-full border border-border-light px-3 py-1.5 text-xs text-ink-soft hover:border-coral/50 hover:text-coral-text"

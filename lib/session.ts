@@ -1,7 +1,20 @@
 import { db } from "@/lib/db";
+import { createClient } from "@/lib/supabase/server";
 
-export function getProfile() {
-  return db.profile.findFirst({ orderBy: { createdAt: "asc" } });
+// The profile belonging to the currently authenticated Supabase user — not
+// "whichever profile exists" (that was fine when the app assumed a single
+// implicit user, but returns null for a signed-in user with no profile yet,
+// which is exactly the "send them to onboarding" signal every page already
+// checks for). Returns null if not signed in too, since proxy.ts guarantees
+// every non-public route already has a session by the time this runs.
+export async function getProfile() {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return null;
+
+  return db.profile.findFirst({ where: { userId: user.id } });
 }
 
 export function getActiveNutritionPlan(profileId: string) {
@@ -45,10 +58,13 @@ export async function getDislikedNames(profileId: string): Promise<string[]> {
 // written on every /today and /profile page load.
 const STREAK_LOOKBACK_DAYS = 400;
 
-export function getRecentLoggedDates() {
+export function getRecentLoggedDates(profileId: string) {
   const cutoff = new Date();
   cutoff.setDate(cutoff.getDate() - STREAK_LOOKBACK_DAYS);
-  return db.mealLog.findMany({ where: { loggedAt: { gte: cutoff } }, select: { loggedAt: true } });
+  return db.mealLog.findMany({
+    where: { profileId, loggedAt: { gte: cutoff } },
+    select: { loggedAt: true },
+  });
 }
 
 /**
@@ -58,8 +74,8 @@ export function getRecentLoggedDates() {
  * could have been on any day, so a log from last week is just as orphaned
  * and just as much in need of a place the user can see and remove it from.
  */
-export function getOrphanedMealLogs() {
-  return db.mealLog.findMany({ where: { mealId: null }, orderBy: { loggedAt: "desc" } });
+export function getOrphanedMealLogs(profileId: string) {
+  return db.mealLog.findMany({ where: { profileId, mealId: null }, orderBy: { loggedAt: "desc" } });
 }
 
 export interface ProfileConstraints {

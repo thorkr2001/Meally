@@ -3,6 +3,7 @@
 import { redirect } from "next/navigation";
 import { db } from "@/lib/db";
 import { generateNutritionPlan } from "@/lib/ai/nutritionPlan";
+import { createClient } from "@/lib/supabase/server";
 import type { ActivityLevel, GoalType, Sex } from "@prisma/client";
 
 function splitList(value: FormDataEntryValue | null): string[] {
@@ -24,8 +25,15 @@ export async function createProfile(formData: FormData) {
   const dietaryPreferences = splitList(formData.get("dietaryPreferences"));
   const conditions = splitList(formData.get("conditions"));
 
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) redirect("/login");
+
   const profile = await db.profile.create({
     data: {
+      userId: user.id,
       weightKg,
       heightCm,
       age,

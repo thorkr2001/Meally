@@ -11,6 +11,7 @@ import type { MealResult } from "@/lib/ai/mealPlan";
 
 export async function logMeal(formData: FormData) {
   const mealId = String(formData.get("mealId"));
+  const profileId = String(formData.get("profileId"));
   const portionPct = Number(formData.get("portion") ?? 100) || 100;
   const portion = portionPct / 100;
 
@@ -18,6 +19,7 @@ export async function logMeal(formData: FormData) {
 
   await db.mealLog.create({
     data: {
+      profileId,
       mealId: meal.id,
       name: portionPct !== 100 ? `${meal.name} (${portionPct}% portion)` : meal.name,
       calories: Math.round(meal.calories * portion),
@@ -35,10 +37,11 @@ export async function logMeal(formData: FormData) {
 
 export async function unlogMeal(formData: FormData) {
   const mealId = String(formData.get("mealId"));
+  const profileId = String(formData.get("profileId"));
   const today = startOfToday();
   const tomorrow = new Date(today.getTime() + 86400000);
 
-  await db.mealLog.deleteMany({ where: { mealId, loggedAt: { gte: today, lt: tomorrow } } });
+  await db.mealLog.deleteMany({ where: { profileId, mealId, loggedAt: { gte: today, lt: tomorrow } } });
 
   revalidatePath("/today");
   revalidatePath("/profile");
@@ -48,9 +51,13 @@ export async function unlogMeal(formData: FormData) {
 // connected to a Meal. Needed for logs whose Meal was later deleted (e.g. the
 // day got regenerated after logging) — disconnectMealLogs preserves those
 // rows on purpose, but unlogMeal can't reach them since it matches by mealId.
+// deleteMany (not delete) so the profileId check is enforced in the same
+// query rather than trusting the id alone — a mismatched profileId deletes
+// nothing instead of throwing.
 export async function removeMealLog(formData: FormData) {
   const logId = String(formData.get("logId"));
-  await db.mealLog.delete({ where: { id: logId } });
+  const profileId = String(formData.get("profileId"));
+  await db.mealLog.deleteMany({ where: { id: logId, profileId } });
 
   revalidatePath("/today");
   revalidatePath("/profile");

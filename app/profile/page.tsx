@@ -12,6 +12,7 @@ import { FlameIcon } from "@/components/FlameIcon";
 import {
   logWeight,
   resetApp,
+  logout,
   removeDietaryPreference,
   removeDislikedIngredient,
   generateProgressFeedbackAction,
@@ -29,7 +30,7 @@ export default async function ProfilePage() {
     where: { profileId: profile.id },
     orderBy: { loggedAt: "asc" },
   });
-  const allMealLogs = await getRecentLoggedDates();
+  const allMealLogs = await getRecentLoggedDates(profile.id);
   const dietaryPreferences: string[] = JSON.parse(profile.dietaryPreferences);
   const dislikedIngredients = await db.dislikedIngredient.findMany({
     where: { profileId: profile.id },
@@ -45,7 +46,7 @@ export default async function ProfilePage() {
     const periodStart = new Date();
     periodStart.setHours(0, 0, 0, 0);
     periodStart.setDate(periodStart.getDate() - (TRACKED_DAYS - 1));
-    const recentLogs = await db.mealLog.findMany({ where: { loggedAt: { gte: periodStart } } });
+    const recentLogs = await db.mealLog.findMany({ where: { profileId: profile.id, loggedAt: { gte: periodStart } } });
     const dayTotals = groupLogsByDay(recentLogs);
     trackedDays = [...dayTotals.entries()]
       .sort(([a], [b]) => a.localeCompare(b))
@@ -214,8 +215,17 @@ export default async function ProfilePage() {
         </div>
       )}
 
-      <div className="mt-6">
-        <ResetButton action={resetApp} />
+      <form action={logout} className="mt-6">
+        <button
+          type="submit"
+          className="w-full rounded-2xl border-[1.5px] border-border-light px-4 py-3 text-[13px] font-semibold text-ink-soft hover:bg-app-bg/40"
+        >
+          Log out
+        </button>
+      </form>
+
+      <div className="mt-3.5">
+        <ResetButton profileId={profile.id} action={resetApp} />
       </div>
     </div>
   );
