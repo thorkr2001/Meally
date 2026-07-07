@@ -8,7 +8,7 @@ import { SubmitButton } from "@/components/SubmitButton";
 import { PortionLogger } from "@/components/PortionLogger";
 import { MealRecipeInfo } from "@/components/MealRecipeInfo";
 import { FlameIcon } from "@/components/FlameIcon";
-import { logMeal, unlogMeal, importRecipeAction, logQuickMeal } from "./actions";
+import { logMeal, unlogMeal, importRecipeAction, logQuickMeal, removeMealLog } from "./actions";
 
 export const dynamic = "force-dynamic";
 
@@ -38,6 +38,12 @@ export default async function TodayPage() {
   ]);
   const loggedMealIds = new Set(todaysLogs.map((l) => l.mealId).filter(Boolean));
   const streak = computeStreak(allLogs.map((l) => l.loggedAt));
+
+  // A log's Meal can be deleted out from under it (e.g. the day got
+  // regenerated after logging) — disconnectMealLogs nulls mealId to preserve
+  // the log rather than deleting it, so it still counts toward today's
+  // totals but has no card to show/undo it from. Surface those separately.
+  const orphanedLogs = todaysLogs.filter((l) => l.mealId === null);
 
   const totals = todaysLogs.reduce(
     (acc, log) => ({
@@ -152,6 +158,34 @@ export default async function TodayPage() {
           </SubmitButton>
         </form>
       </div>
+
+      {orphanedLogs.length > 0 && (
+        <div className="mt-5 rounded-2xl bg-white p-4">
+          <p className="text-[13px] font-semibold text-ink-soft">Logged earlier, no longer on today&apos;s plan</p>
+          <p className="mt-0.5 text-xs text-ink-faint">
+            These still count toward your totals above. Remove any that shouldn&apos;t.
+          </p>
+          <div className="mt-3 flex flex-col gap-2">
+            {orphanedLogs.map((log) => (
+              <div key={log.id} className="flex items-center justify-between gap-3 border-t border-border-light pt-2 first:border-none first:pt-0">
+                <div>
+                  <p className="text-sm font-medium text-ink">{log.name}</p>
+                  <p className="text-xs text-ink-faint">{log.calories} kcal</p>
+                </div>
+                <form action={removeMealLog}>
+                  <input type="hidden" name="logId" value={log.id} />
+                  <SubmitButton
+                    pendingText="Removing..."
+                    className="rounded-full border border-border-light px-3 py-1.5 text-xs text-ink-soft hover:border-coral/50 hover:text-coral-text"
+                  >
+                    Remove
+                  </SubmitButton>
+                </form>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
     </div>
   );
 }

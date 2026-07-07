@@ -44,6 +44,18 @@ export async function unlogMeal(formData: FormData) {
   revalidatePath("/profile");
 }
 
+// Removes a MealLog directly by its own id, regardless of whether it's still
+// connected to a Meal. Needed for logs whose Meal was later deleted (e.g. the
+// day got regenerated after logging) — disconnectMealLogs preserves those
+// rows on purpose, but unlogMeal can't reach them since it matches by mealId.
+export async function removeMealLog(formData: FormData) {
+  const logId = String(formData.get("logId"));
+  await db.mealLog.delete({ where: { id: logId } });
+
+  revalidatePath("/today");
+  revalidatePath("/profile");
+}
+
 export async function logQuickMeal(formData: FormData) {
   const description = String(formData.get("description") ?? "").trim();
   if (!description) return;
