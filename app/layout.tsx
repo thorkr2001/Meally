@@ -28,7 +28,7 @@ export default function RootLayout({
   return (
     <html lang="en" className={`${spaceGrotesk.variable} ${inter.variable} h-full`}>
       <body className="min-h-full bg-app-bg font-sans text-ink antialiased">
-        <div className="flex min-h-full flex-col items-center px-5 py-8 sm:py-10">
+        <div className="flex min-h-full flex-col items-center sm:px-5 sm:py-8 md:py-10">
           <AppShell>{children}</AppShell>
         </div>
       </body>

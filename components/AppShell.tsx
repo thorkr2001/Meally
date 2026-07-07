@@ -2,6 +2,7 @@
 
 import { usePathname } from "next/navigation";
 import { Sidebar } from "@/components/Sidebar";
+import { BottomNav } from "@/components/BottomNav";
 
 const NO_SHELL_PREFIXES = ["/onboarding", "/plan"];
 
@@ -14,9 +15,10 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   }
 
   return (
-    <div className="flex w-full max-w-[1280px] overflow-hidden rounded-[28px] bg-shell-bg shadow-shell">
+    <div className="flex w-full max-w-[1280px] overflow-hidden bg-shell-bg sm:rounded-[28px] sm:shadow-shell">
       <Sidebar />
-      <main className="min-w-0 flex-1 px-8 py-9 sm:px-11">{children}</main>
+      <main className="min-w-0 flex-1 px-4 pb-24 pt-6 sm:px-8 sm:py-9 md:pb-9">{children}</main>
+      <BottomNav />
     </div>
   );
 }
