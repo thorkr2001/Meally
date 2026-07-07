@@ -9,12 +9,13 @@ import { createClient } from "@/lib/supabase/server";
 // every non-public route already has a session by the time this runs.
 export async function getProfile() {
   const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) return null;
+  // getClaims() verifies the JWT locally (no network round-trip) when the
+  // Supabase project uses asymmetric signing keys, falling back to the same
+  // network check as getUser() otherwise — strictly faster or equal.
+  const { data } = await supabase.auth.getClaims();
+  if (!data) return null;
 
-  return db.profile.findFirst({ where: { userId: user.id } });
+  return db.profile.findFirst({ where: { userId: data.claims.sub } });
 }
 
 export function getActiveNutritionPlan(profileId: string) {
@@ -44,6 +45,39 @@ export function getDraftMealPlan(nutritionPlanId: string) {
     where: { nutritionPlanId, status: "DRAFT" },
     orderBy: { createdAt: "desc" },
     include: { days: { include: { meals: true }, orderBy: { dayOfWeek: "asc" } } },
+  });
+}
+
+// Same shape as getActiveNutritionPlan + getActiveMealPlan, fetched as one
+// nested query instead of two sequential round-trips — used on /today, the
+// most-visited page, where that round-trip adds up on every load.
+export function getActiveNutritionPlanWithMealPlan(profileId: string) {
+  return db.nutritionPlan.findFirst({
+    where: { profileId, status: "ACCEPTED" },
+    orderBy: { createdAt: "desc" },
+    include: {
+      mealPlans: {
+        where: { status: "ACCEPTED" },
+        orderBy: { createdAt: "desc" },
+        take: 1,
+        include: { days: { include: { meals: true }, orderBy: { dayOfWeek: "asc" } } },
+      },
+    },
+  });
+}
+
+// Just enough to decide which of /onboarding, /plan/review, /meal-plan,
+// /today the root router should send the user to — one round-trip instead
+// of up to three sequential ones, since "/" is the landing page after every
+// login.
+export function getRouteStatus(profileId: string) {
+  return db.nutritionPlan.findMany({
+    where: { profileId },
+    orderBy: { createdAt: "desc" },
+    select: {
+      status: true,
+      mealPlans: { where: { status: "ACCEPTED" }, select: { id: true }, take: 1 },
+    },
   });
 }
 

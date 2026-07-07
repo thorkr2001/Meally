@@ -1,8 +1,7 @@
 import { redirect } from "next/navigation";
 import { db } from "@/lib/db";
 import {
-  getActiveMealPlan,
-  getActiveNutritionPlan,
+  getActiveNutritionPlanWithMealPlan,
   getOrphanedMealLogs,
   getProfile,
   getRecentLoggedDates,
@@ -35,10 +34,10 @@ export default async function TodayPage() {
   const profile = await getProfile();
   if (!profile) redirect("/onboarding");
 
-  const nutritionPlan = await getActiveNutritionPlan(profile.id);
+  const nutritionPlan = await getActiveNutritionPlanWithMealPlan(profile.id);
   if (!nutritionPlan) redirect("/plan/review");
 
-  const mealPlan = await getActiveMealPlan(nutritionPlan.id);
+  const mealPlan = nutritionPlan.mealPlans[0];
   if (!mealPlan) redirect("/meal-plan");
 
   const today = startOfToday();

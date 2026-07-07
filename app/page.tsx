@@ -1,5 +1,5 @@
 import { redirect } from "next/navigation";
-import { getActiveNutritionPlan, getDraftNutritionPlan, getActiveMealPlan, getProfile } from "@/lib/session";
+import { getProfile, getRouteStatus } from "@/lib/session";
 
 export const dynamic = "force-dynamic";
 
@@ -7,14 +7,14 @@ export default async function Home() {
   const profile = await getProfile();
   if (!profile) redirect("/onboarding");
 
-  const activePlan = await getActiveNutritionPlan(profile.id);
+  const plans = await getRouteStatus(profile.id);
+  const activePlan = plans.find((p) => p.status === "ACCEPTED");
   if (!activePlan) {
-    const draftPlan = await getDraftNutritionPlan(profile.id);
-    redirect(draftPlan ? "/plan/review" : "/onboarding");
+    const hasDraft = plans.some((p) => p.status === "DRAFT");
+    redirect(hasDraft ? "/plan/review" : "/onboarding");
   }
 
-  const activeMealPlan = await getActiveMealPlan(activePlan.id);
-  if (!activeMealPlan) redirect("/meal-plan");
+  if (activePlan.mealPlans.length === 0) redirect("/meal-plan");
 
   redirect("/today");
 }

@@ -26,33 +26,31 @@ export default async function ProfilePage() {
   const profile = await getProfile();
   if (!profile) redirect("/onboarding");
 
-  const weightLogs = await db.weightLog.findMany({
-    where: { profileId: profile.id },
-    orderBy: { loggedAt: "asc" },
-  });
-  const allMealLogs = await getRecentLoggedDates(profile.id);
+  const periodStart = new Date();
+  periodStart.setHours(0, 0, 0, 0);
+  periodStart.setDate(periodStart.getDate() - (TRACKED_DAYS - 1));
+
+  const [weightLogs, allMealLogs, dislikedIngredients, nutritionPlan, recentLogs, progressFeedback] =
+    await Promise.all([
+      db.weightLog.findMany({ where: { profileId: profile.id }, orderBy: { loggedAt: "asc" } }),
+      getRecentLoggedDates(profile.id),
+      db.dislikedIngredient.findMany({ where: { profileId: profile.id }, orderBy: { addedAt: "desc" } }),
+      getActiveNutritionPlan(profile.id),
+      db.mealLog.findMany({ where: { profileId: profile.id, loggedAt: { gte: periodStart } } }),
+      db.progressFeedback.findUnique({ where: { profileId: profile.id } }),
+    ]);
   const dietaryPreferences: string[] = JSON.parse(profile.dietaryPreferences);
-  const dislikedIngredients = await db.dislikedIngredient.findMany({
-    where: { profileId: profile.id },
-    orderBy: { addedAt: "desc" },
-  });
 
   const streak = computeStreak(allMealLogs.map((l) => l.loggedAt));
   const hitStreakMilestone = STREAK_MILESTONES.includes(streak);
 
-  const nutritionPlan = await getActiveNutritionPlan(profile.id);
   let trackedDays: ReturnType<typeof evaluateDay>[] = [];
   if (nutritionPlan) {
-    const periodStart = new Date();
-    periodStart.setHours(0, 0, 0, 0);
-    periodStart.setDate(periodStart.getDate() - (TRACKED_DAYS - 1));
-    const recentLogs = await db.mealLog.findMany({ where: { profileId: profile.id, loggedAt: { gte: periodStart } } });
     const dayTotals = groupLogsByDay(recentLogs);
     trackedDays = [...dayTotals.entries()]
       .sort(([a], [b]) => a.localeCompare(b))
       .map(([date, totals]) => evaluateDay(date, totals, nutritionPlan));
   }
-  const progressFeedback = await db.progressFeedback.findUnique({ where: { profileId: profile.id } });
   const doingWell: string[] = progressFeedback ? JSON.parse(progressFeedback.doingWell) : [];
   const improve: string[] = progressFeedback ? JSON.parse(progressFeedback.improve) : [];
 

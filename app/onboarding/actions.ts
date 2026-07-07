@@ -26,14 +26,12 @@ export async function createProfile(formData: FormData) {
   const conditions = splitList(formData.get("conditions"));
 
   const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) redirect("/login");
+  const { data } = await supabase.auth.getClaims();
+  if (!data) redirect("/login");
 
   const profile = await db.profile.create({
     data: {
-      userId: user.id,
+      userId: data.claims.sub,
       weightKg,
       heightCm,
       age,

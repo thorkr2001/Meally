@@ -24,9 +24,12 @@ export async function updateSession(request: NextRequest) {
     },
   });
 
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  // getClaims() verifies the JWT locally (no network round-trip) when the
+  // Supabase project uses asymmetric signing keys, falling back to the same
+  // network check as getUser() otherwise — strictly faster or equal, never
+  // slower, so it's preferred over getUser() per Supabase's own SDK docs.
+  const { data: claimsData } = await supabase.auth.getClaims();
+  const user = claimsData?.claims ?? null;
 
   const isPublic = PUBLIC_PATHS.some((path) => request.nextUrl.pathname.startsWith(path));
 
