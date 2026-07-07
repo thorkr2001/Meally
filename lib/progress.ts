@@ -1,3 +1,9 @@
+import { localDateKey } from "@/lib/dates";
+
+// Single source of truth for the tracker window — both the ProgressGrid and
+// the AI feedback summary must describe the same span of days.
+export const TRACKED_DAYS = 7;
+
 export type MetricStatus = "hit" | "under" | "over";
 
 export interface DayTotals {
@@ -54,7 +60,7 @@ export function groupLogsByDay<T extends { loggedAt: Date } & DayTotals>(
   const days = new Map<string, DayTotals>();
 
   for (const log of logs) {
-    const key = log.loggedAt.toISOString().slice(0, 10);
+    const key = localDateKey(log.loggedAt);
     const existing = days.get(key) ?? { calories: 0, proteinG: 0, carbsG: 0, fatG: 0, sugarG: 0, fiberG: 0 };
     days.set(key, {
       calories: existing.calories + log.calories,

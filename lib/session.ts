@@ -38,3 +38,18 @@ export async function getDislikedNames(profileId: string): Promise<string[]> {
   const rows = await db.dislikedIngredient.findMany({ where: { profileId } });
   return rows.map((r) => r.name);
 }
+
+export interface ProfileConstraints {
+  conditions: string[];
+  dietaryPreferences: string[];
+  dislikedIngredients: string[];
+}
+
+export async function getProfileConstraints(profileId: string): Promise<ProfileConstraints> {
+  const profile = await db.profile.findUniqueOrThrow({ where: { id: profileId } });
+  return {
+    conditions: JSON.parse(profile.conditions),
+    dietaryPreferences: JSON.parse(profile.dietaryPreferences),
+    dislikedIngredients: await getDislikedNames(profileId),
+  };
+}

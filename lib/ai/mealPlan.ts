@@ -44,7 +44,7 @@ const RETURN_MEAL_PLAN_TOOL: Anthropic.Tool = {
         items: {
           type: "object",
           properties: {
-            dayOfWeek: { type: "integer", description: "0 = Monday .. 6 = Sunday" },
+            dayOfWeek: { type: "integer", enum: [0, 1, 2, 3, 4, 5, 6], description: "0 = Monday .. 6 = Sunday" },
             meals: { type: "array", items: MEAL_SCHEMA },
           },
           required: ["dayOfWeek", "meals"],

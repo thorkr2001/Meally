@@ -128,6 +128,7 @@ export default async function TodayPage() {
           <input
             type="text"
             name="description"
+            required
             placeholder="e.g. cheese toastie and an apple"
             className="flex-1 rounded-lg border border-neutral-300 px-3 py-2 text-sm"
           />

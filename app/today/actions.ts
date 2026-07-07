@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { db } from "@/lib/db";
-import { getProfile, getActiveNutritionPlan, getActiveMealPlan, getDislikedNames } from "@/lib/session";
+import { getProfile, getActiveNutritionPlan, getActiveMealPlan, getProfileConstraints } from "@/lib/session";
 import { currentDayOfWeek } from "@/lib/streaks";
 import { mealFields, startOfToday } from "@/lib/meals";
 import { importRecipeForMeal } from "@/lib/ai/recipeImport";
@@ -82,10 +82,9 @@ export async function importRecipeAction(formData: FormData) {
     include: { mealPlanDay: { include: { mealPlan: { include: { nutritionPlan: true } } } } },
   });
   const nutritionPlan = meal.mealPlanDay.mealPlan.nutritionPlan;
-  const profile = await db.profile.findUniqueOrThrow({ where: { id: nutritionPlan.profileId } });
-  const conditions: string[] = JSON.parse(profile.conditions);
-  const dietaryPreferences: string[] = JSON.parse(profile.dietaryPreferences);
-  const dislikedIngredients = await getDislikedNames(profile.id);
+  const { conditions, dietaryPreferences, dislikedIngredients } = await getProfileConstraints(
+    nutritionPlan.profileId
+  );
 
   const result = await importRecipeForMeal(
     url,

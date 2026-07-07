@@ -2,7 +2,7 @@ import { redirect } from "next/navigation";
 import { db } from "@/lib/db";
 import { getProfile, getActiveNutritionPlan } from "@/lib/session";
 import { computeStreak } from "@/lib/streaks";
-import { evaluateDay, groupLogsByDay } from "@/lib/progress";
+import { evaluateDay, groupLogsByDay, TRACKED_DAYS } from "@/lib/progress";
 import { WeightChart } from "@/components/WeightChart";
 import { Celebration } from "@/components/Celebration";
 import { ResetButton } from "@/components/ResetButton";
@@ -15,8 +15,6 @@ import {
   removeDislikedIngredient,
   generateProgressFeedbackAction,
 } from "./actions";
-
-const TRACKED_DAYS = 7;
 
 export const dynamic = "force-dynamic";
 

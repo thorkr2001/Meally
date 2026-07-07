@@ -89,6 +89,17 @@ export default async function MealPlanPage() {
                       P {meal.proteinG}g · C {meal.carbsG}g · F {meal.fatG}g · Sugar {meal.sugarG}g · Fiber{" "}
                       {meal.fiberG}g
                     </p>
+                    {meal.sourceUrl && (
+                      <a
+                        href={meal.sourceUrl}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="mt-1 inline-block text-xs text-emerald-600 underline"
+                      >
+                        📖 View recipe
+                      </a>
+                    )}
+                    {meal.notes && <p className="mt-1 text-xs italic text-neutral-400">{meal.notes}</p>}
                   </div>
                 );
               })}
@@ -99,6 +110,7 @@ export default async function MealPlanPage() {
               <input
                 type="text"
                 name="feedback"
+                required
                 placeholder={`What do you want changed for ${DAY_NAMES[day.dayOfWeek]}?`}
                 className="flex-1 rounded-lg border border-neutral-300 px-3 py-1.5 text-sm"
               />
@@ -122,6 +134,7 @@ export default async function MealPlanPage() {
         <textarea
           name="feedback"
           rows={2}
+          required
           placeholder="e.g. more variety in lunches, less repetition, swap out red meat"
           className="rounded-lg border border-neutral-300 px-3 py-2 text-sm"
         />

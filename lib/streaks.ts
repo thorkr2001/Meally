@@ -1,15 +1,13 @@
-function toDateKey(d: Date): string {
-  return d.toISOString().slice(0, 10);
-}
+import { localDateKey } from "@/lib/dates";
 
 export function computeStreak(loggedAtDates: Date[]): number {
   if (loggedAtDates.length === 0) return 0;
 
-  const days = new Set(loggedAtDates.map(toDateKey));
+  const days = new Set(loggedAtDates.map(localDateKey));
   let streak = 0;
   const cursor = new Date();
 
-  while (days.has(toDateKey(cursor))) {
+  while (days.has(localDateKey(cursor))) {
     streak += 1;
     cursor.setDate(cursor.getDate() - 1);
   }

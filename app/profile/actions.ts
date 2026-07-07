@@ -4,10 +4,8 @@ import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { db } from "@/lib/db";
 import { getActiveNutritionPlan } from "@/lib/session";
-import { evaluateDay, groupLogsByDay } from "@/lib/progress";
+import { evaluateDay, groupLogsByDay, TRACKED_DAYS } from "@/lib/progress";
 import { generateProgressFeedback } from "@/lib/ai/progressFeedback";
-
-const TRACKED_DAYS = 7;
 
 export async function logWeight(formData: FormData) {
   const profileId = String(formData.get("profileId"));
