@@ -1,0 +1,169 @@
+// Prisma schema for Meally.
+// SQLite for local prototyping; switching to Supabase later is just changing
+// `provider` to "postgresql" and DATABASE_URL, no model changes needed.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+enum Sex {
+  MALE
+  FEMALE
+}
+
+enum ActivityLevel {
+  SEDENTARY
+  LIGHT
+  MODERATE
+  ACTIVE
+  VERY_ACTIVE
+}
+
+enum GoalType {
+  LOSE
+  MAINTAIN
+  GAIN
+}
+
+enum PlanStatus {
+  DRAFT
+  ACCEPTED
+}
+
+enum MealType {
+  BREAKFAST
+  LUNCH
+  DINNER
+  SNACK
+}
+
+model Profile {
+  id                  String        @id @default(cuid())
+  weightKg            Float
+  heightCm            Float
+  age                 Int
+  sex                 Sex
+  activityLevel       ActivityLevel
+  dietaryPreferences  String // JSON-encoded string[]
+  conditions          String // JSON-encoded string[]
+  goalType            GoalType
+  goalWeightKg        Float?
+  createdAt           DateTime      @default(now())
+  updatedAt           DateTime      @updatedAt
+
+  weightLogs           WeightLog[]
+  nutritionPlans       NutritionPlan[]
+  dislikedIngredients  DislikedIngredient[]
+  progressFeedback     ProgressFeedback?
+}
+
+model WeightLog {
+  id        String   @id @default(cuid())
+  profileId String
+  profile   Profile  @relation(fields: [profileId], references: [id])
+  weightKg  Float
+  loggedAt  DateTime @default(now())
+}
+
+model NutritionPlan {
+  id            String     @id @default(cuid())
+  profileId     String
+  profile       Profile    @relation(fields: [profileId], references: [id])
+  version       Int        @default(1)
+  status        PlanStatus @default(DRAFT)
+  calories      Int
+  proteinG      Int
+  carbsG        Int
+  fatG          Int
+  sugarG        Int
+  fiberG        Int
+  researchNotes String // Claude's rationale / citations
+  createdAt     DateTime   @default(now())
+
+  mealPlans MealPlan[]
+}
+
+model DislikedIngredient {
+  id        String   @id @default(cuid())
+  profileId String
+  profile   Profile  @relation(fields: [profileId], references: [id])
+  name      String
+  addedAt   DateTime @default(now())
+
+  @@unique([profileId, name])
+}
+
+model MealPlan {
+  id              String     @id @default(cuid())
+  nutritionPlanId String
+  nutritionPlan   NutritionPlan @relation(fields: [nutritionPlanId], references: [id])
+  weekStartDate   DateTime
+  status          PlanStatus @default(DRAFT)
+  createdAt       DateTime   @default(now())
+
+  days MealPlanDay[]
+}
+
+model MealPlanDay {
+  id         String   @id @default(cuid())
+  mealPlanId String
+  mealPlan   MealPlan @relation(fields: [mealPlanId], references: [id])
+  dayOfWeek  Int // 0 = Monday .. 6 = Sunday
+  date       DateTime
+
+  meals Meal[]
+
+  @@unique([mealPlanId, dayOfWeek])
+}
+
+model Meal {
+  id            String      @id @default(cuid())
+  mealPlanDayId String
+  mealPlanDay   MealPlanDay @relation(fields: [mealPlanDayId], references: [id])
+  type          MealType
+  name          String
+  description   String
+  ingredients   String // JSON-encoded string[]
+  calories      Int
+  proteinG      Int
+  carbsG        Int
+  fatG          Int
+  sugarG        Int
+  fiberG        Int
+  sourceUrl     String? // recipe URL, if this meal was imported from one
+  notes         String? // e.g. adjustments/exclusions Claude made when importing a recipe
+
+  logs MealLog[]
+}
+
+model MealLog {
+  id         String   @id @default(cuid())
+  mealId     String?
+  meal       Meal?    @relation(fields: [mealId], references: [id])
+  loggedAt   DateTime @default(now())
+  name       String // snapshot in case the meal/plan changes later
+  calories   Int
+  proteinG   Int
+  carbsG     Int
+  fatG       Int
+  sugarG     Int
+  fiberG     Int
+  notes      String?
+}
+
+model ProgressFeedback {
+  id          String   @id @default(cuid())
+  profileId   String   @unique
+  profile     Profile  @relation(fields: [profileId], references: [id])
+  periodStart DateTime
+  periodEnd   DateTime
+  summary     String
+  doingWell   String // JSON-encoded string[]
+  improve     String // JSON-encoded string[]
+  createdAt   DateTime @default(now())
+}

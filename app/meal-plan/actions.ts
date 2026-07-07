@@ -1,0 +1,225 @@
+"use server";
+
+import { redirect } from "next/navigation";
+import { revalidatePath } from "next/cache";
+import { db } from "@/lib/db";
+import {
+  generateMealPlan,
+  regenerateMeal,
+  regenerateDay,
+  reviseMealPlan,
+  type MealResult,
+  type MealPlanResult,
+} from "@/lib/ai/mealPlan";
+import { getDislikedNames } from "@/lib/session";
+import { toMealResult, mealFields } from "@/lib/meals";
+
+function startOfWeek(): Date {
+  const now = new Date();
+  const dayOfWeek = now.getDay() === 0 ? 6 : now.getDay() - 1;
+  now.setHours(0, 0, 0, 0);
+  now.setDate(now.getDate() - dayOfWeek);
+  return now;
+}
+
+async function savePreference(profileId: string, currentPreferences: string[], feedback: string) {
+  if (currentPreferences.some((p) => p.toLowerCase() === feedback.toLowerCase())) return;
+
+  await db.profile.update({
+    where: { id: profileId },
+    data: { dietaryPreferences: JSON.stringify([...currentPreferences, feedback]) },
+  });
+}
+
+export async function generateMealPlanAction(formData: FormData) {
+  const nutritionPlanId = String(formData.get("nutritionPlanId"));
+  const profileId = String(formData.get("profileId"));
+
+  const nutritionPlan = await db.nutritionPlan.findUniqueOrThrow({ where: { id: nutritionPlanId } });
+  const profile = await db.profile.findUniqueOrThrow({ where: { id: profileId } });
+  const conditions: string[] = JSON.parse(profile.conditions);
+  const dietaryPreferences: string[] = JSON.parse(profile.dietaryPreferences);
+  const dislikedIngredients = await getDislikedNames(profileId);
+
+  const result = await generateMealPlan(nutritionPlan, conditions, dietaryPreferences, dislikedIngredients);
+
+  await db.mealPlan.create({
+    data: {
+      nutritionPlanId,
+      weekStartDate: startOfWeek(),
+      status: "DRAFT",
+      days: {
+        create: result.days.map((day) => ({
+          dayOfWeek: day.dayOfWeek,
+          date: new Date(startOfWeek().getTime() + day.dayOfWeek * 86400000),
+          meals: { create: day.meals.map(mealFields) },
+        })),
+      },
+    },
+  });
+
+  revalidatePath("/meal-plan");
+}
+
+export async function dislikeIngredient(formData: FormData) {
+  const profileId = String(formData.get("profileId"));
+  const mealPlanId = String(formData.get("mealPlanId"));
+  const ingredient = String(formData.get("ingredient"));
+
+  await db.dislikedIngredient.upsert({
+    where: { profileId_name: { profileId, name: ingredient } },
+    create: { profileId, name: ingredient },
+    update: {},
+  });
+
+  const mealPlan = await db.mealPlan.findUniqueOrThrow({
+    where: { id: mealPlanId },
+    include: { days: { include: { meals: true } }, nutritionPlan: true },
+  });
+  const profile = await db.profile.findUniqueOrThrow({ where: { id: profileId } });
+  const conditions: string[] = JSON.parse(profile.conditions);
+  const dietaryPreferences: string[] = JSON.parse(profile.dietaryPreferences);
+  const dislikedIngredients = await getDislikedNames(profileId);
+
+  const affectedMeals = mealPlan.days
+    .flatMap((day) => day.meals)
+    .filter((meal) => (JSON.parse(meal.ingredients) as string[]).some(
+      (i) => i.toLowerCase() === ingredient.toLowerCase()
+    ));
+
+  for (const meal of affectedMeals) {
+    const replacement = await regenerateMeal(
+      meal.type as unknown as MealResult["type"],
+      mealPlan.nutritionPlan,
+      conditions,
+      dietaryPreferences,
+      dislikedIngredients
+    );
+
+    await db.meal.update({ where: { id: meal.id }, data: mealFields(replacement) });
+  }
+
+  revalidatePath("/meal-plan");
+}
+
+export async function regenerateDayAction(formData: FormData) {
+  const dayId = String(formData.get("dayId"));
+  const feedback = String(formData.get("feedback") ?? "").trim();
+  if (!feedback) return;
+
+  const day = await db.mealPlanDay.findUniqueOrThrow({
+    where: { id: dayId },
+    include: { meals: true, mealPlan: { include: { nutritionPlan: true } } },
+  });
+  const profile = await db.profile.findUniqueOrThrow({
+    where: { id: day.mealPlan.nutritionPlan.profileId },
+  });
+  const conditions: string[] = JSON.parse(profile.conditions);
+  const dietaryPreferences: string[] = JSON.parse(profile.dietaryPreferences);
+  const dislikedIngredients = await getDislikedNames(profile.id);
+
+  const newMeals = await regenerateDay(
+    day.meals.map(toMealResult),
+    day.mealPlan.nutritionPlan,
+    conditions,
+    dietaryPreferences,
+    dislikedIngredients,
+    feedback
+  );
+
+  await savePreference(profile.id, dietaryPreferences, feedback);
+
+  const mealIds = day.meals.map((m) => m.id);
+
+  await db.$transaction([
+    db.mealLog.deleteMany({ where: { mealId: { in: mealIds } } }),
+    db.meal.deleteMany({ where: { id: { in: mealIds } } }),
+    db.meal.createMany({
+      data: newMeals.map((meal) => ({ mealPlanDayId: dayId, ...mealFields(meal) })),
+    }),
+  ]);
+
+  revalidatePath("/meal-plan");
+}
+
+export async function reviseMealPlanAction(formData: FormData) {
+  const mealPlanId = String(formData.get("mealPlanId"));
+  const feedback = String(formData.get("feedback") ?? "").trim();
+  if (!feedback) return;
+
+  const mealPlan = await db.mealPlan.findUniqueOrThrow({
+    where: { id: mealPlanId },
+    include: { days: { include: { meals: true }, orderBy: { dayOfWeek: "asc" } }, nutritionPlan: true },
+  });
+  const profile = await db.profile.findUniqueOrThrow({ where: { id: mealPlan.nutritionPlan.profileId } });
+  const conditions: string[] = JSON.parse(profile.conditions);
+  const dietaryPreferences: string[] = JSON.parse(profile.dietaryPreferences);
+  const dislikedIngredients = await getDislikedNames(profile.id);
+
+  const currentPlan: MealPlanResult = {
+    days: mealPlan.days.map((day) => ({
+      dayOfWeek: day.dayOfWeek,
+      meals: day.meals.map(toMealResult),
+    })),
+  };
+
+  const revised = await reviseMealPlan(
+    currentPlan,
+    mealPlan.nutritionPlan,
+    conditions,
+    dietaryPreferences,
+    dislikedIngredients,
+    feedback
+  );
+
+  await savePreference(profile.id, dietaryPreferences, feedback);
+
+  const mealIds = mealPlan.days.flatMap((d) => d.meals.map((m) => m.id));
+  const dayIds = mealPlan.days.map((d) => d.id);
+
+  await db.$transaction([
+    db.mealLog.deleteMany({ where: { mealId: { in: mealIds } } }),
+    db.meal.deleteMany({ where: { id: { in: mealIds } } }),
+    db.mealPlanDay.deleteMany({ where: { id: { in: dayIds } } }),
+    db.mealPlan.update({
+      where: { id: mealPlanId },
+      data: {
+        days: {
+          create: revised.days.map((day) => ({
+            dayOfWeek: day.dayOfWeek,
+            date: new Date(mealPlan.weekStartDate.getTime() + day.dayOfWeek * 86400000),
+            meals: { create: day.meals.map(mealFields) },
+          })),
+        },
+      },
+    }),
+  ]);
+
+  revalidatePath("/meal-plan");
+}
+
+export async function acceptMealPlan(formData: FormData) {
+  const mealPlanId = String(formData.get("mealPlanId"));
+  await db.mealPlan.update({ where: { id: mealPlanId }, data: { status: "ACCEPTED" } });
+  redirect("/today");
+}
+
+export async function regenerateWholeMealPlan(formData: FormData) {
+  const mealPlanId = String(formData.get("mealPlanId"));
+
+  const mealPlan = await db.mealPlan.findUniqueOrThrow({
+    where: { id: mealPlanId },
+    include: { days: { include: { meals: true } } },
+  });
+  const mealIds = mealPlan.days.flatMap((day) => day.meals.map((m) => m.id));
+  const dayIds = mealPlan.days.map((d) => d.id);
+
+  await db.$transaction([
+    db.mealLog.deleteMany({ where: { mealId: { in: mealIds } } }),
+    db.meal.deleteMany({ where: { id: { in: mealIds } } }),
+    db.mealPlanDay.deleteMany({ where: { id: { in: dayIds } } }),
+    db.mealPlan.delete({ where: { id: mealPlanId } }),
+  ]);
+
+  revalidatePath("/meal-plan");
+}
