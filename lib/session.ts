@@ -46,10 +46,28 @@ export interface ProfileConstraints {
 }
 
 export async function getProfileConstraints(profileId: string): Promise<ProfileConstraints> {
-  const profile = await db.profile.findUniqueOrThrow({ where: { id: profileId } });
+  const profile = await db.profile.findUniqueOrThrow({
+    where: { id: profileId },
+    include: { dislikedIngredients: true },
+  });
   return {
     conditions: JSON.parse(profile.conditions),
     dietaryPreferences: JSON.parse(profile.dietaryPreferences),
-    dislikedIngredients: await getDislikedNames(profileId),
+    dislikedIngredients: profile.dislikedIngredients.map((d) => d.name),
   };
+}
+
+/**
+ * Adds a disliked ingredient if it's not already present (case-insensitively —
+ * SQLite has no case-insensitive unique index, so "Tomatoes" and "tomatoes"
+ * would otherwise both land). The only place that should ever write a
+ * DislikedIngredient row, so this guarantee can't be silently reintroduced by
+ * a future call site duplicating the check.
+ */
+export async function addDislikedIngredientIfNew(profileId: string, name: string): Promise<string[]> {
+  const existing = await getDislikedNames(profileId);
+  if (existing.some((n) => n.toLowerCase() === name.toLowerCase())) return existing;
+
+  await db.dislikedIngredient.create({ data: { profileId, name } });
+  return [...existing, name];
 }

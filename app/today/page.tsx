@@ -6,6 +6,7 @@ import { startOfToday } from "@/lib/meals";
 import { StatRing } from "@/components/StatRing";
 import { SubmitButton } from "@/components/SubmitButton";
 import { PortionLogger } from "@/components/PortionLogger";
+import { MealRecipeInfo } from "@/components/MealRecipeInfo";
 import { logMeal, unlogMeal, importRecipeAction, logQuickMeal } from "./actions";
 
 export const dynamic = "force-dynamic";
@@ -80,17 +81,7 @@ export default async function TodayPage() {
                   )}
                 </div>
 
-                {meal.sourceUrl && (
-                  <a
-                    href={meal.sourceUrl}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="mt-2 inline-block text-xs text-emerald-600 underline"
-                  >
-                    📖 View recipe
-                  </a>
-                )}
-                {meal.notes && <p className="mt-1 text-xs italic text-neutral-400">{meal.notes}</p>}
+                <MealRecipeInfo sourceUrl={meal.sourceUrl} notes={meal.notes} />
 
                 <form
                   action={importRecipeAction}

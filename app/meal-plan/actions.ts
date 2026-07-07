@@ -11,8 +11,9 @@ import {
   type MealResult,
   type MealPlanResult,
 } from "@/lib/ai/mealPlan";
-import { getProfileConstraints } from "@/lib/session";
-import { toMealResult, mealFields } from "@/lib/meals";
+import { getProfileConstraints, addDislikedIngredientIfNew } from "@/lib/session";
+import { toMealResult, mealFields, disconnectMealLogs } from "@/lib/meals";
+import type { NutritionPlan } from "@prisma/client";
 
 function startOfWeek(): Date {
   const now = new Date();
@@ -58,26 +59,41 @@ export async function generateMealPlanAction(formData: FormData) {
   revalidatePath("/meal-plan");
 }
 
+async function regenerateAffectedMeal(
+  meal: { id: string; type: string },
+  nutritionPlan: NutritionPlan,
+  conditions: string[],
+  dietaryPreferences: string[],
+  dislikedIngredients: string[]
+) {
+  const replacement = await regenerateMeal(
+    meal.type as unknown as MealResult["type"],
+    nutritionPlan,
+    conditions,
+    dietaryPreferences,
+    dislikedIngredients
+  );
+
+  // Clear sourceUrl/notes: this meal's content is being fully replaced, so
+  // any prior recipe-import link/notes no longer describe it.
+  await db.meal.update({
+    where: { id: meal.id },
+    data: { ...mealFields(replacement), sourceUrl: null, notes: null },
+  });
+}
+
 export async function dislikeIngredient(formData: FormData) {
   const profileId = String(formData.get("profileId"));
   const mealPlanId = String(formData.get("mealPlanId"));
   const ingredient = String(formData.get("ingredient"));
 
-  // SQLite has no case-insensitive unique index, so dedupe in JS instead of
-  // relying on the DB constraint (otherwise "Tomatoes" and "tomatoes" both land).
-  const existingDisliked = await db.dislikedIngredient.findMany({ where: { profileId } });
-  const alreadyDisliked = existingDisliked.some(
-    (d) => d.name.toLowerCase() === ingredient.toLowerCase()
-  );
-  if (!alreadyDisliked) {
-    await db.dislikedIngredient.create({ data: { profileId, name: ingredient } });
-  }
+  const dislikedIngredients = await addDislikedIngredientIfNew(profileId, ingredient);
 
   const mealPlan = await db.mealPlan.findUniqueOrThrow({
     where: { id: mealPlanId },
     include: { days: { include: { meals: true } }, nutritionPlan: true },
   });
-  const { conditions, dietaryPreferences, dislikedIngredients } = await getProfileConstraints(profileId);
+  const { conditions, dietaryPreferences } = await getProfileConstraints(profileId);
 
   const affectedMeals = mealPlan.days
     .flatMap((day) => day.meals)
@@ -89,22 +105,9 @@ export async function dislikeIngredient(formData: FormData) {
   // than one-at-a-time so disliking an ingredient in several meals doesn't
   // multiply the wait.
   await Promise.all(
-    affectedMeals.map(async (meal) => {
-      const replacement = await regenerateMeal(
-        meal.type as unknown as MealResult["type"],
-        mealPlan.nutritionPlan,
-        conditions,
-        dietaryPreferences,
-        dislikedIngredients
-      );
-
-      // Clear sourceUrl/notes: this meal's content is being fully replaced,
-      // so any prior recipe-import link/notes no longer describe it.
-      await db.meal.update({
-        where: { id: meal.id },
-        data: { ...mealFields(replacement), sourceUrl: null, notes: null },
-      });
-    })
+    affectedMeals.map((meal) =>
+      regenerateAffectedMeal(meal, mealPlan.nutritionPlan, conditions, dietaryPreferences, dislikedIngredients)
+    )
   );
 
   revalidatePath("/meal-plan");
@@ -136,10 +139,7 @@ export async function regenerateDayAction(formData: FormData) {
   const mealIds = day.meals.map((m) => m.id);
 
   await db.$transaction([
-    // Disconnect rather than delete: MealLog already snapshots the eaten
-    // food's own calories/macros, so this preserves logged history instead of
-    // silently erasing already-eaten days when a meal/day/plan is regenerated.
-    db.mealLog.updateMany({ where: { mealId: { in: mealIds } }, data: { mealId: null } }),
+    disconnectMealLogs(mealIds),
     db.meal.deleteMany({ where: { id: { in: mealIds } } }),
     db.meal.createMany({
       data: newMeals.map((meal) => ({ mealPlanDayId: dayId, ...mealFields(meal) })),
@@ -183,10 +183,7 @@ export async function reviseMealPlanAction(formData: FormData) {
   const dayIds = mealPlan.days.map((d) => d.id);
 
   await db.$transaction([
-    // Disconnect rather than delete: MealLog already snapshots the eaten
-    // food's own calories/macros, so this preserves logged history instead of
-    // silently erasing already-eaten days when a meal/day/plan is regenerated.
-    db.mealLog.updateMany({ where: { mealId: { in: mealIds } }, data: { mealId: null } }),
+    disconnectMealLogs(mealIds),
     db.meal.deleteMany({ where: { id: { in: mealIds } } }),
     db.mealPlanDay.deleteMany({ where: { id: { in: dayIds } } }),
     db.mealPlan.update({
@@ -223,10 +220,7 @@ export async function regenerateWholeMealPlan(formData: FormData) {
   const dayIds = mealPlan.days.map((d) => d.id);
 
   await db.$transaction([
-    // Disconnect rather than delete: MealLog already snapshots the eaten
-    // food's own calories/macros, so this preserves logged history instead of
-    // silently erasing already-eaten days when a meal/day/plan is regenerated.
-    db.mealLog.updateMany({ where: { mealId: { in: mealIds } }, data: { mealId: null } }),
+    disconnectMealLogs(mealIds),
     db.meal.deleteMany({ where: { id: { in: mealIds } } }),
     db.mealPlanDay.deleteMany({ where: { id: { in: dayIds } } }),
     db.mealPlan.delete({ where: { id: mealPlanId } }),

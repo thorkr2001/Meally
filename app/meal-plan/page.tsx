@@ -10,6 +10,7 @@ import {
 } from "./actions";
 import { SubmitButton } from "@/components/SubmitButton";
 import { ConfirmForm } from "@/components/ConfirmForm";
+import { MealRecipeInfo } from "@/components/MealRecipeInfo";
 
 export const dynamic = "force-dynamic";
 
@@ -89,17 +90,7 @@ export default async function MealPlanPage() {
                       P {meal.proteinG}g · C {meal.carbsG}g · F {meal.fatG}g · Sugar {meal.sugarG}g · Fiber{" "}
                       {meal.fiberG}g
                     </p>
-                    {meal.sourceUrl && (
-                      <a
-                        href={meal.sourceUrl}
-                        target="_blank"
-                        rel="noreferrer"
-                        className="mt-1 inline-block text-xs text-emerald-600 underline"
-                      >
-                        📖 View recipe
-                      </a>
-                    )}
-                    {meal.notes && <p className="mt-1 text-xs italic text-neutral-400">{meal.notes}</p>}
+                    <MealRecipeInfo sourceUrl={meal.sourceUrl} notes={meal.notes} />
                   </div>
                 );
               })}

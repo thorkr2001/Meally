@@ -127,6 +127,20 @@ function summarizeMeals(meals: MealResult[]): string {
   return meals.map((m) => `${m.type}: ${m.name} (${m.calories} kcal) — ${m.description}`).join("\n");
 }
 
+// The tool schema constrains each dayOfWeek to 0-6, but not the *set* of 7
+// values as a whole — Claude could still return two Wednesdays and no Sunday.
+// Catch that here with a clear error instead of letting it surface as an
+// opaque Prisma unique-constraint crash (MealPlanDay is unique per
+// [mealPlanId, dayOfWeek]) deep inside a $transaction.
+function assertValidWeek(days: MealPlanDayResult[]): void {
+  const seen = new Set(days.map((d) => d.dayOfWeek));
+  if (days.length !== 7 || seen.size !== 7) {
+    throw new Error(
+      `Meal plan must cover exactly 7 unique days (0-6); got: ${days.map((d) => d.dayOfWeek).join(", ")}`
+    );
+  }
+}
+
 async function callForToolUse<T>(
   prompt: string,
   tool: Anthropic.Tool,
@@ -167,7 +181,9 @@ ${VARIETY_NOTE}
 
 For each meal, list its ingredients (matching the required texture/form) and full nutrition breakdown. Keep each meal's description to one short sentence. Call return_meal_plan with the complete 7-day plan.`;
 
-  return callForToolUse<MealPlanResult>(prompt, RETURN_MEAL_PLAN_TOOL, 12000);
+  const result = await callForToolUse<MealPlanResult>(prompt, RETURN_MEAL_PLAN_TOOL, 12000);
+  assertValidWeek(result.days);
+  return result;
 }
 
 export async function regenerateMeal(
@@ -248,5 +264,7 @@ ${VARIETY_NOTE}
 
 Rebuild the complete 7-day plan to address the feedback while still hitting the daily targets in aggregate. Keep each meal's description to one short sentence. Call return_meal_plan with the complete revised 7-day plan.`;
 
-  return callForToolUse<MealPlanResult>(prompt, RETURN_MEAL_PLAN_TOOL, 12000);
+  const result = await callForToolUse<MealPlanResult>(prompt, RETURN_MEAL_PLAN_TOOL, 12000);
+  assertValidWeek(result.days);
+  return result;
 }
