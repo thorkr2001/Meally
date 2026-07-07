@@ -1,14 +1,17 @@
 // Prisma schema for Meally.
-// SQLite for local prototyping; switching to Supabase later is just changing
-// `provider` to "postgresql" and DATABASE_URL, no model changes needed.
+// Postgres (Supabase) in production and local dev alike. DATABASE_URL is the
+// pooled (pgbouncer, port 6543) connection used at runtime; DIRECT_URL is the
+// direct (port 5432) connection Prisma needs for migrations, since pgbouncer's
+// transaction mode doesn't support the prepared statements migrate uses.
 
 generator client {
   provider = "prisma-client-js"
 }
 
 datasource db {
-  provider = "sqlite"
-  url      = env("DATABASE_URL")
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
 }
 
 enum Sex {

@@ -17,10 +17,11 @@ npx prisma generate        # regenerate the Prisma client (needed if migrate's o
 
 No test suite is configured in this repo.
 
-**Windows/SQLite gotcha:** `npx prisma migrate dev` can fail with `EPERM` on
-`query_engine-windows.dll` if the dev server is currently running (it holds the
-file open). Stop the dev server first, run the migration, run
-`npx prisma generate`, then restart the dev server.
+**Windows gotcha:** `npx prisma migrate dev` (or a bare `prisma generate`) can
+fail with `EPERM` on `query_engine-windows.dll` if the dev server is currently
+running — it holds that engine binary open regardless of which database
+provider is configured. Stop the dev server first, run the migration/generate,
+then restart the dev server.
 
 Requires `ANTHROPIC_API_KEY` in `.env` to actually call Claude (nutrition plan,
 meal plan, recipe import, quick-log, progress feedback all hit the live API —
@@ -152,47 +153,40 @@ AI narrative on top (`lib/ai/progressFeedback.ts`) is cached in the
 `ProgressFeedback` table (one row per profile, upserted) and only regenerated
 when the user clicks the button — never automatically, to control API cost.
 
-## Deploying to Vercel + Supabase
+## Database: Supabase Postgres
 
-The app currently runs on local SQLite (`prisma/schema.prisma`'s
-`datasource db { provider = "sqlite" }`). Moving to Supabase Postgres is a
-deliberate, not-yet-applied step — do it in this order once a Supabase
-project exists, so local dev never breaks mid-way:
+The app runs on Supabase Postgres (`prisma/schema.prisma`'s
+`datasource db { provider = "postgresql" }`), migrated from an earlier local
+SQLite prototype. `DATABASE_URL` is the **pooled** connection (port 6543,
+`?pgbouncer=true`) used by the app at runtime — serverless functions can't
+hold long-lived connections. `DIRECT_URL` is the **direct** connection (port
+5432), used only when running migrations, since pgbouncer's transaction mode
+breaks Prisma's migration engine. Both live in `.env` locally and as Vercel
+project env vars in production — see `.env.example` for the shape.
 
-1. **Back up first.** `npx tsx scripts/export-data.ts > backup.json` dumps
-   every table (in FK-safe order) from whatever `DATABASE_URL` currently
-   points to. Do this against the live SQLite `dev.db` before touching
-   anything — it's the only copy of the real onboarded profile/plan/history.
-2. **Get two connection strings** from the Supabase dashboard → Project
-   Settings → Database: the **pooled** one (port 6543, `?pgbouncer=true`) and
-   the **direct** one (port 5432). Prisma needs both — pooled for the app at
-   runtime (serverless functions can't hold long-lived connections), direct
-   for running migrations (pgbouncer's transaction mode breaks Prisma's
-   migration engine).
-3. **Update `prisma/schema.prisma`**:
-   ```prisma
-   datasource db {
-     provider  = "postgresql"
-     url       = env("DATABASE_URL")   // pooled, port 6543
-     directUrl = env("DIRECT_URL")     // direct, port 5432
-   }
-   ```
-4. **Set `DATABASE_URL` and `DIRECT_URL`** in `.env` (local) to the two
-   strings from step 2 — see `.env.example` for the shape.
-5. **Run `npx prisma migrate dev --name init_postgres`** — this creates a
-   fresh Postgres-native migration history (the existing SQLite migrations
-   under `prisma/migrations/` don't apply to Postgres; a fresh history is
-   expected here, not a bug).
-6. **Restore the data**: `npx tsx scripts/import-data.ts backup.json`.
-7. **Vercel**: import the GitHub repo at vercel.com/new (Next.js is
-   auto-detected, no `vercel.json` needed). Set the same three env vars
-   (`DATABASE_URL`, `DIRECT_URL`, `ANTHROPIC_API_KEY`) in the Vercel
-   project's Settings → Environment Variables, then deploy. `package.json`'s
-   `postinstall: "prisma generate"` script (already in place) makes sure the
-   Prisma client regenerates on every Vercel build.
+`prisma/migrations/` starts from `20260707221435_init_postgres` — the earlier
+SQLite-era migration history was deleted rather than translated, since SQLite
+migrations don't apply to Postgres; this is intentional, not a gap.
 
-After this migration, the Windows/SQLite `EPERM` gotcha above no longer
-applies (no local file to lock), and `lib/session.ts`'s case-insensitive
-disliked-ingredient dedup (`addDislikedIngredientIfNew`) could in principle
-be replaced by a Postgres citext/functional index — left as-is since the
-existing JS-side check still works correctly on Postgres.
+`lib/session.ts`'s case-insensitive disliked-ingredient dedup
+(`addDislikedIngredientIfNew`) could in principle be replaced by a Postgres
+citext/functional index now that SQLite's lack of one is no longer the
+constraint — left as-is since the existing JS-side check still works
+correctly on Postgres and isn't worth the migration.
+
+`scripts/export-data.ts` / `scripts/import-data.ts` are the general-purpose
+backup/restore pair used for this migration (JSON dump of every table in
+FK-safe order); keep them around for any future re-platforming, not just
+one-off use.
+
+### Deploying to Vercel
+
+Import the GitHub repo at vercel.com/new — Next.js is auto-detected, no
+`vercel.json` needed. Set `DATABASE_URL`, `DIRECT_URL`, and
+`ANTHROPIC_API_KEY` in the project's Settings → Environment Variables (same
+values as local `.env`), then deploy. `package.json`'s
+`postinstall: "prisma generate"` script makes sure the Prisma client
+regenerates on every Vercel build. Four pages (`onboarding`, `plan/review`,
+`meal-plan`, `today`) export `maxDuration = 60` since their Server Actions run
+a `web_search` research call before their forced-tool call, which can
+comfortably exceed most serverless platforms' default function timeout.
