@@ -168,13 +168,58 @@ async function callForToolUse<T>(
   return toolUse.input as T;
 }
 
+// Meals are AI-composed to fit the user's constraints, not literal existing
+// recipes, so there's no single URL to fetch per meal (that's what recipe
+// import is for). Instead: propose real dishes for the brief, then use
+// web_search to verify each one's typical prep+cook time and nutrition
+// against real recipe/nutrition sources, so the final numbers are grounded
+// rather than invented. Same two-phase pattern as nutritionPlan.ts's
+// researchConditions() — forcing a tool call prevents Claude from also
+// calling web_search, so research has to be a separate untooled call first.
+async function researchMealFacts(brief: string, maxSearches: number): Promise<string> {
+  const messages: Anthropic.MessageParam[] = [
+    {
+      role: "user",
+      content: `${brief}
+
+Propose a real, well-known dish for each meal above. Then use web search to verify each dish's typical active prep + cook time and its calories/protein/carbs/fat/sugar/fiber per serving, from a reputable recipe or nutrition source — batch similar dishes into the same search rather than one search per meal. Do at most ${maxSearches} searches. Report back one line per meal: day/slot, the real dish name, prep+cook time in minutes, and the nutrition figures, with a brief inline source.`,
+    },
+  ];
+
+  let response = await anthropic.messages.create({
+    model: MEAL_PLAN_MODEL,
+    max_tokens: 4096,
+    tools: [{ type: "web_search_20260209", name: "web_search", max_uses: maxSearches }],
+    messages,
+  });
+
+  while (response.stop_reason === "pause_turn") {
+    messages.push({ role: "assistant", content: response.content });
+    response = await anthropic.messages.create({
+      model: MEAL_PLAN_MODEL,
+      max_tokens: 4096,
+      tools: [{ type: "web_search_20260209", name: "web_search", max_uses: maxSearches }],
+      messages,
+    });
+  }
+
+  return response.content
+    .filter((block): block is Anthropic.TextBlock => block.type === "text")
+    .map((block) => block.text)
+    .join("\n");
+}
+
+const USE_RESEARCH_NOTE = `Web-verified reference data for the dishes proposed above (dish name, prep+cook time, and nutrition per serving):`;
+
+const GROUNDING_NOTE = `Use these SAME dish names, and treat the researched prep+cook time and nutrition figures as ground truth — only lightly scale portions if needed to fit the daily targets (scaling changes nutrition but not cook time). If a dish isn't covered above, estimate conservatively from the closest researched dish rather than guessing from scratch.`;
+
 export async function generateMealPlan(
   nutritionPlan: NutritionPlanResult,
   conditions: string[],
   dietaryPreferences: string[],
   dislikedIngredients: string[]
 ): Promise<MealPlanResult> {
-  const prompt = `Create a 7-day meal plan that hits these daily targets:
+  const brief = `Create a 7-day meal plan that hits these daily targets:
 ${targetsBlock(nutritionPlan)}
 
 ${constraintsBlock(conditions, dietaryPreferences, dislikedIngredients)}
@@ -183,9 +228,16 @@ ${HARD_CONSTRAINTS_NOTE} Only fall back to a default of breakfast, lunch, dinner
 
 ${REALISM_NOTE}
 
-${VARIETY_NOTE}
+${VARIETY_NOTE}`;
 
-For each meal, list its ingredients (matching the required texture/form) and full nutrition breakdown. Keep each meal's description to one short sentence. Call return_meal_plan with the complete 7-day plan.`;
+  const research = await researchMealFacts(brief, 10);
+
+  const prompt = `${brief}
+
+${USE_RESEARCH_NOTE}
+${research}
+
+${GROUNDING_NOTE} For each meal, list its ingredients (matching the required texture/form). Keep each meal's description to one short sentence. Call return_meal_plan with the complete 7-day plan.`;
 
   const result = await callForToolUse<MealPlanResult>(prompt, RETURN_MEAL_PLAN_TOOL, 12000);
   assertValidWeek(result.days);
@@ -199,16 +251,23 @@ export async function regenerateMeal(
   dietaryPreferences: string[],
   dislikedIngredients: string[]
 ): Promise<MealResult> {
-  const prompt = `Create a single replacement ${mealType} meal for a user with these daily targets:
+  const brief = `Create a single replacement ${mealType} meal for a user with these daily targets:
 ${targetsBlock(nutritionPlan)}
 
 ${constraintsBlock(conditions, dietaryPreferences, dislikedIngredients)}
 
 ${HARD_CONSTRAINTS_NOTE}
 
-${REALISM_NOTE}
+${REALISM_NOTE}`;
 
-Call return_meal with the replacement meal, including its full nutrition breakdown.`;
+  const research = await researchMealFacts(brief, 2);
+
+  const prompt = `${brief}
+
+${USE_RESEARCH_NOTE}
+${research}
+
+${GROUNDING_NOTE} Call return_meal with the replacement meal, including its full nutrition breakdown.`;
 
   return callForToolUse<MealResult>(prompt, RETURN_SINGLE_MEAL_TOOL, 2048);
 }
@@ -221,7 +280,7 @@ export async function regenerateDay(
   dislikedIngredients: string[],
   feedback: string
 ): Promise<MealResult[]> {
-  const prompt = `A user's current meals for one day of their weekly meal plan are:
+  const brief = `A user's current meals for one day of their weekly meal plan are:
 ${summarizeMeals(currentMeals)}
 
 ${targetsBlock(nutritionPlan)}
@@ -232,9 +291,16 @@ The user gave this feedback specifically for this day: "${feedback}"
 
 ${HARD_CONSTRAINTS_NOTE}
 
-${REALISM_NOTE} If this day has more than one meal, they should differ from each other in protein and cooking method too, not just from other days.
+${REALISM_NOTE} If this day has more than one meal, they should differ from each other in protein and cooking method too, not just from other days.`;
 
-Rebuild this day's meals to address the feedback while still hitting the daily targets in aggregate. You may change the number of meals if the feedback or conditions call for it. Keep each meal's description to one short sentence. Call return_day_meals with the complete replacement set of meals for this day.`;
+  const research = await researchMealFacts(brief, 4);
+
+  const prompt = `${brief}
+
+${USE_RESEARCH_NOTE}
+${research}
+
+${GROUNDING_NOTE} Rebuild this day's meals to address the feedback while still hitting the daily targets in aggregate. You may change the number of meals if the feedback or conditions call for it. Keep each meal's description to one short sentence. Call return_day_meals with the complete replacement set of meals for this day.`;
 
   const result = await callForToolUse<{ meals: MealResult[] }>(prompt, RETURN_DAY_MEALS_TOOL, 3000);
   return result.meals;
@@ -253,7 +319,7 @@ export async function reviseMealPlan(
     .map((day) => `${dayNames[day.dayOfWeek]}:\n${summarizeMeals(day.meals)}`)
     .join("\n\n");
 
-  const prompt = `A user's current 7-day meal plan is:
+  const brief = `A user's current 7-day meal plan is:
 ${currentSummary}
 
 ${targetsBlock(nutritionPlan)}
@@ -266,9 +332,16 @@ ${HARD_CONSTRAINTS_NOTE} Only fall back to a default of breakfast, lunch, dinner
 
 ${REALISM_NOTE}
 
-${VARIETY_NOTE}
+${VARIETY_NOTE}`;
 
-Rebuild the complete 7-day plan to address the feedback while still hitting the daily targets in aggregate. Keep each meal's description to one short sentence. Call return_meal_plan with the complete revised 7-day plan.`;
+  const research = await researchMealFacts(brief, 10);
+
+  const prompt = `${brief}
+
+${USE_RESEARCH_NOTE}
+${research}
+
+${GROUNDING_NOTE} Rebuild the complete 7-day plan to address the feedback while still hitting the daily targets in aggregate. Keep each meal's description to one short sentence. Call return_meal_plan with the complete revised 7-day plan.`;
 
   const result = await callForToolUse<MealPlanResult>(prompt, RETURN_MEAL_PLAN_TOOL, 12000);
   assertValidWeek(result.days);
