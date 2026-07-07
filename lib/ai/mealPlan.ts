@@ -15,6 +15,10 @@ export const MEAL_SCHEMA = {
     fatG: { type: "integer" },
     sugarG: { type: "integer" },
     fiberG: { type: "integer" },
+    prepMinutes: {
+      type: "integer",
+      description: "Realistic total active prep + cook time in minutes (e.g. a shake is ~5, a simmered stew is 45+).",
+    },
   },
   required: [
     "type",
@@ -27,6 +31,7 @@ export const MEAL_SCHEMA = {
     "fatG",
     "sugarG",
     "fiberG",
+    "prepMinutes",
   ],
   additionalProperties: false,
 };
@@ -89,6 +94,7 @@ export interface MealResult {
   fatG: number;
   sugarG: number;
   fiberG: number;
+  prepMinutes: number;
 }
 
 export interface MealPlanDayResult {

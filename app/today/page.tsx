@@ -58,6 +58,9 @@ export default async function TodayPage() {
   );
 
   const day = mealPlan.days.find((d) => d.dayOfWeek === currentDayOfWeek());
+  const remainingPrepMinutes = (day?.meals ?? [])
+    .filter((meal) => !loggedMealIds.has(meal.id))
+    .reduce((sum, meal) => sum + meal.prepMinutes, 0);
 
   return (
     <div>
@@ -85,8 +88,13 @@ export default async function TodayPage() {
         <StatRing label="Fat" value={totals.fatG} target={nutritionPlan.fatG} unit="g" metric="fat" />
       </div>
 
-      <h2 className="mt-7 mb-3 font-display text-[17px] font-semibold text-ink">Today&apos;s meals</h2>
-      <div className="flex flex-col gap-2.5">
+      <div className="mt-7 flex items-baseline justify-between">
+        <h2 className="font-display text-[17px] font-semibold text-ink">Today&apos;s meals</h2>
+        {remainingPrepMinutes > 0 && (
+          <span className="text-xs font-semibold text-ink-soft">⏱ ~{remainingPrepMinutes} min of prep left</span>
+        )}
+      </div>
+      <div className="mt-3 flex flex-col gap-2.5">
         {day?.meals.length ? (
           day.meals.map((meal) => {
             const logged = loggedMealIds.has(meal.id);
@@ -101,7 +109,9 @@ export default async function TodayPage() {
                       {meal.type}
                     </span>
                     <p className="mt-0.5 font-semibold text-ink">{meal.name}</p>
-                    <p className="mt-0.5 text-xs text-ink-faint italic">{meal.calories} kcal (100% portion)</p>
+                    <p className="mt-0.5 text-xs text-ink-faint italic">
+                      {meal.calories} kcal (100% portion) · ⏱ {meal.prepMinutes} min
+                    </p>
                   </div>
                   {logged ? (
                     <form action={unlogMeal}>

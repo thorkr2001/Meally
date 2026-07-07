@@ -14,6 +14,7 @@ export function toMealResult(meal: Meal): MealResult {
     fatG: meal.fatG,
     sugarG: meal.sugarG,
     fiberG: meal.fiberG,
+    prepMinutes: meal.prepMinutes,
   };
 }
 
@@ -29,6 +30,7 @@ export function mealFields(meal: MealResult) {
     fatG: meal.fatG,
     sugarG: meal.sugarG,
     fiberG: meal.fiberG,
+    prepMinutes: meal.prepMinutes,
   };
 }
 

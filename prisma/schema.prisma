@@ -135,6 +135,7 @@ model Meal {
   fatG          Int
   sugarG        Int
   fiberG        Int
+  prepMinutes   Int     @default(20) // estimated active prep + cook time
   sourceUrl     String? // recipe URL, if this meal was imported from one
   notes         String? // e.g. adjustments/exclusions Claude made when importing a recipe
 

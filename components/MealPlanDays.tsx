@@ -31,6 +31,7 @@ export function MealPlanDays({
     days.some((d) => d.dayOfWeek === initialDay) ? initialDay : days[0]?.dayOfWeek ?? 0
   );
   const day = days.find((d) => d.dayOfWeek === selected);
+  const totalPrepMinutes = day?.meals.reduce((sum, meal) => sum + meal.prepMinutes, 0) ?? 0;
 
   return (
     <>
@@ -56,17 +57,20 @@ export function MealPlanDays({
 
       {day && (
         <div className="mt-5 flex flex-col gap-4 rounded-[22px] bg-white p-6">
+          <p className="text-xs font-semibold text-ink-soft">⏱ ~{totalPrepMinutes} min of prep/cook today</p>
           {day.meals.map((meal) => {
             const ingredients: string[] = JSON.parse(meal.ingredients);
             return (
               <div key={meal.id} className="border-t border-border-light pt-3.5 first:border-none first:pt-0">
                 <div className="flex items-baseline justify-between">
                   <span className="text-[11px] font-bold tracking-wide text-coral-text uppercase">{meal.type}</span>
-                  <span className="text-xs text-ink-faint">{meal.calories} kcal</span>
+                  <span className="text-xs text-ink-faint">
+                    {meal.calories} kcal · ⏱ {meal.prepMinutes} min
+                  </span>
                 </div>
                 <p className="mt-0.5 font-semibold text-ink">{meal.name}</p>
                 <p className="mt-0.5 text-xs text-ink-soft">
-                  P {meal.proteinG}g · C {meal.carbsG}g · F {meal.fatG}g
+                  P {meal.proteinG}g · C {meal.carbsG}g · F {meal.fatG}g · Sugar {meal.sugarG}g · Fiber {meal.fiberG}g
                 </p>
                 <div className="mt-2 flex flex-wrap gap-1.5">
                   {ingredients.map((ingredient) => (
@@ -83,9 +87,6 @@ export function MealPlanDays({
                     </form>
                   ))}
                 </div>
-                <p className="mt-1.5 text-xs text-ink-faint">
-                  Sugar {meal.sugarG}g · Fiber {meal.fiberG}g
-                </p>
                 <MealRecipeInfo sourceUrl={meal.sourceUrl} notes={meal.notes} />
 
                 <ConfirmForm

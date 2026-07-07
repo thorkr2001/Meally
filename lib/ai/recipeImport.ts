@@ -28,6 +28,10 @@ const RETURN_RECIPE_MEAL_TOOL: Anthropic.Tool = {
       fatG: { type: "integer" },
       sugarG: { type: "integer" },
       fiberG: { type: "integer" },
+      prepMinutes: {
+        type: "integer",
+        description: "Total active prep + cook time in minutes — use the recipe's stated time if given, else estimate.",
+      },
     },
     required: [
       "name",
@@ -40,6 +44,7 @@ const RETURN_RECIPE_MEAL_TOOL: Anthropic.Tool = {
       "fatG",
       "sugarG",
       "fiberG",
+      "prepMinutes",
     ],
     additionalProperties: false,
   },
@@ -52,7 +57,7 @@ async function fetchRecipeSummary(url: string): Promise<string> {
   const messages: Anthropic.MessageParam[] = [
     {
       role: "user",
-      content: `Fetch this recipe page and read it: ${url}\n\nSummarize: the dish name, its full ingredient list with quantities, the stated serving size, and its calories/macros per serving if the page states them.`,
+      content: `Fetch this recipe page and read it: ${url}\n\nSummarize: the dish name, its full ingredient list with quantities, the stated serving size, its calories/macros per serving if the page states them, and its stated prep/cook time if given.`,
     },
   ];
 
@@ -108,7 +113,8 @@ Ingredients the user dislikes and must NOT appear: ${
 Tasks:
 1. Estimate this meal's nutrition (calories, protein, carbs, fat, sugar, fiber) for a single serving sized to reasonably fit within this meal's share of the daily targets above — scale the recipe's stated serving if needed.
 2. If any ingredient conflicts with the conditions, dietary preferences, or dislikes above (wrong texture, an allergen, a disliked item), leave it out of the final ingredients list or substitute it with something suitable, and say what you changed and why in "notes" (one short sentence). If nothing needs to change, set notes to an empty string.
-3. Call return_recipe_meal with the final adjusted meal.`;
+3. Estimate prepMinutes: use the recipe's stated total prep + cook time if given, otherwise your best realistic estimate.
+4. Call return_recipe_meal with the final adjusted meal.`;
 
   const response = await anthropic.messages.create({
     model: MEAL_PLAN_MODEL,
