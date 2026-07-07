@@ -18,12 +18,10 @@ interface DayWithMeals {
 
 export function MealPlanDays({
   days,
-  profileId,
   mealPlanId,
   initialDay,
 }: {
   days: DayWithMeals[];
-  profileId: string;
   mealPlanId: string;
   initialDay: number;
 }) {
@@ -75,7 +73,6 @@ export function MealPlanDays({
                 <div className="mt-2 flex flex-wrap gap-1.5">
                   {ingredients.map((ingredient) => (
                     <form key={ingredient} action={dislikeIngredient}>
-                      <input type="hidden" name="profileId" value={profileId} />
                       <input type="hidden" name="mealPlanId" value={mealPlanId} />
                       <input type="hidden" name="ingredient" value={ingredient} />
                       <SubmitButton

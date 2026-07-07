@@ -36,7 +36,6 @@ export default async function MealPlanPage() {
         </p>
         <form action={generateMealPlanAction} className="mt-6">
           <input type="hidden" name="nutritionPlanId" value={nutritionPlan.id} />
-          <input type="hidden" name="profileId" value={profile.id} />
           <SubmitButton
             pendingText="Building your weekly meal plan..."
             className="w-full rounded-2xl bg-primary px-4 py-3.5 text-[15px] font-bold text-white hover:bg-primary-hover"
@@ -55,12 +54,7 @@ export default async function MealPlanPage() {
         Tap a day to review it, tap an ingredient you don&apos;t like to swap it out.
       </p>
 
-      <MealPlanDays
-        days={mealPlan.days}
-        profileId={profile.id}
-        mealPlanId={mealPlan.id}
-        initialDay={currentDayOfWeek()}
-      />
+      <MealPlanDays days={mealPlan.days} mealPlanId={mealPlan.id} initialDay={currentDayOfWeek()} />
 
       <form
         action={reviseMealPlanAction}

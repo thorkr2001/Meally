@@ -5,12 +5,10 @@ import { SubmitButton } from "./SubmitButton";
 
 export function PortionLogger({
   mealId,
-  profileId,
   calories,
   action,
 }: {
   mealId: string;
-  profileId: string;
   calories: number;
   action: (formData: FormData) => void;
 }) {
@@ -19,7 +17,6 @@ export function PortionLogger({
   return (
     <form action={action} className="flex flex-col items-end gap-1">
       <input type="hidden" name="mealId" value={mealId} />
-      <input type="hidden" name="profileId" value={profileId} />
       <input type="hidden" name="portion" value={portionPct} />
       <div className="flex items-center gap-2">
         <input

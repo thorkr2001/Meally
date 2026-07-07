@@ -142,7 +142,6 @@ export default async function ProfilePage() {
 
           {trackedDays.length > 0 && (
             <form action={generateProgressFeedbackAction} className="mt-4">
-              <input type="hidden" name="profileId" value={profile.id} />
               <SubmitButton
                 pendingText="Analyzing your week..."
                 className="w-full rounded-xl border-[1.5px] border-border-light px-4 py-2.5 text-sm font-semibold text-ink hover:bg-app-bg/40"
@@ -160,7 +159,6 @@ export default async function ProfilePage() {
       </div>
 
       <form action={logWeight} className="mt-3.5 flex items-center gap-2.5 rounded-2xl bg-white p-4">
-        <input type="hidden" name="profileId" value={profile.id} />
         <input
           name="weightKg"
           type="number"
@@ -186,7 +184,6 @@ export default async function ProfilePage() {
           <div className="mt-3 flex flex-wrap gap-1.5">
             {dietaryPreferences.map((preference) => (
               <form key={preference} action={removeDietaryPreference}>
-                <input type="hidden" name="profileId" value={profile.id} />
                 <input type="hidden" name="preference" value={preference} />
                 <button
                   type="submit"
@@ -223,7 +220,7 @@ export default async function ProfilePage() {
       </form>
 
       <div className="mt-3.5">
-        <ResetButton profileId={profile.id} action={resetApp} />
+        <ResetButton action={resetApp} />
       </div>
     </div>
   );

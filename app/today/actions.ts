@@ -11,15 +11,20 @@ import type { MealResult } from "@/lib/ai/mealPlan";
 
 export async function logMeal(formData: FormData) {
   const mealId = String(formData.get("mealId"));
-  const profileId = String(formData.get("profileId"));
   const portionPct = Number(formData.get("portion") ?? 100) || 100;
   const portion = portionPct / 100;
 
-  const meal = await db.meal.findUniqueOrThrow({ where: { id: mealId } });
+  const profile = await getProfile();
+  if (!profile) return;
+
+  const meal = await db.meal.findFirst({
+    where: { id: mealId, mealPlanDay: { mealPlan: { nutritionPlan: { profileId: profile.id } } } },
+  });
+  if (!meal) return;
 
   await db.mealLog.create({
     data: {
-      profileId,
+      profileId: profile.id,
       mealId: meal.id,
       name: portionPct !== 100 ? `${meal.name} (${portionPct}% portion)` : meal.name,
       calories: Math.round(meal.calories * portion),
@@ -37,11 +42,14 @@ export async function logMeal(formData: FormData) {
 
 export async function unlogMeal(formData: FormData) {
   const mealId = String(formData.get("mealId"));
-  const profileId = String(formData.get("profileId"));
+  const profile = await getProfile();
+  if (!profile) return;
   const today = startOfToday();
   const tomorrow = new Date(today.getTime() + 86400000);
 
-  await db.mealLog.deleteMany({ where: { profileId, mealId, loggedAt: { gte: today, lt: tomorrow } } });
+  await db.mealLog.deleteMany({
+    where: { profileId: profile.id, mealId, loggedAt: { gte: today, lt: tomorrow } },
+  });
 
   revalidatePath("/today");
   revalidatePath("/profile");
@@ -56,8 +64,9 @@ export async function unlogMeal(formData: FormData) {
 // nothing instead of throwing.
 export async function removeMealLog(formData: FormData) {
   const logId = String(formData.get("logId"));
-  const profileId = String(formData.get("profileId"));
-  await db.mealLog.deleteMany({ where: { id: logId, profileId } });
+  const profile = await getProfile();
+  if (!profile) return;
+  await db.mealLog.deleteMany({ where: { id: logId, profileId: profile.id } });
 
   revalidatePath("/today");
   revalidatePath("/profile");
@@ -96,10 +105,14 @@ export async function importRecipeAction(formData: FormData) {
   const url = String(formData.get("url") ?? "").trim();
   if (!url) return;
 
-  const meal = await db.meal.findUniqueOrThrow({
-    where: { id: mealId },
+  const profile = await getProfile();
+  if (!profile) return;
+
+  const meal = await db.meal.findFirst({
+    where: { id: mealId, mealPlanDay: { mealPlan: { nutritionPlan: { profileId: profile.id } } } },
     include: { mealPlanDay: { include: { mealPlan: { include: { nutritionPlan: true } } } } },
   });
+  if (!meal) return;
   const nutritionPlan = meal.mealPlanDay.mealPlan.nutritionPlan;
   const { conditions, dietaryPreferences, dislikedIngredients } = await getProfileConstraints(
     nutritionPlan.profileId

@@ -4,12 +4,15 @@ import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { db } from "@/lib/db";
 import { reviseNutritionPlan } from "@/lib/ai/nutritionPlan";
+import { getProfile } from "@/lib/session";
 
 export async function updatePlan(formData: FormData) {
   const id = String(formData.get("id"));
+  const profile = await getProfile();
+  if (!profile) return;
 
-  await db.nutritionPlan.update({
-    where: { id },
+  await db.nutritionPlan.updateMany({
+    where: { id, profileId: profile.id },
     data: {
       calories: Number(formData.get("calories")),
       proteinG: Number(formData.get("proteinG")),
@@ -28,7 +31,12 @@ export async function revisePlan(formData: FormData) {
   const feedback = String(formData.get("feedback") ?? "").trim();
   if (!feedback) return;
 
-  const current = await db.nutritionPlan.findUniqueOrThrow({ where: { id } });
+  const profile = await getProfile();
+  if (!profile) return;
+
+  const current = await db.nutritionPlan.findFirst({ where: { id, profileId: profile.id } });
+  if (!current) return;
+
   const revised = await reviseNutritionPlan(current, feedback);
 
   await db.nutritionPlan.update({
@@ -50,6 +58,14 @@ export async function revisePlan(formData: FormData) {
 
 export async function acceptPlan(formData: FormData) {
   const id = String(formData.get("id"));
-  await db.nutritionPlan.update({ where: { id }, data: { status: "ACCEPTED" } });
+  const profile = await getProfile();
+  if (!profile) return;
+
+  const result = await db.nutritionPlan.updateMany({
+    where: { id, profileId: profile.id },
+    data: { status: "ACCEPTED" },
+  });
+  if (result.count === 0) return;
+
   redirect("/meal-plan");
 }

@@ -3,7 +3,7 @@
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { db } from "@/lib/db";
-import { getActiveNutritionPlan } from "@/lib/session";
+import { getProfile, getActiveNutritionPlan } from "@/lib/session";
 import { evaluateDay, groupLogsByDay, TRACKED_DAYS } from "@/lib/progress";
 import { generateProgressFeedback } from "@/lib/ai/progressFeedback";
 import { createClient } from "@/lib/supabase/server";
@@ -15,24 +15,26 @@ export async function logout() {
 }
 
 export async function logWeight(formData: FormData) {
-  const profileId = String(formData.get("profileId"));
   const weightKg = Number(formData.get("weightKg"));
 
-  await db.weightLog.create({ data: { profileId, weightKg } });
-  await db.profile.update({ where: { id: profileId }, data: { weightKg } });
+  const profile = await getProfile();
+  if (!profile) return;
+
+  await db.weightLog.create({ data: { profileId: profile.id, weightKg } });
+  await db.profile.update({ where: { id: profile.id }, data: { weightKg } });
 
   revalidatePath("/profile");
 }
 
 export async function removeDietaryPreference(formData: FormData) {
-  const profileId = String(formData.get("profileId"));
   const preference = String(formData.get("preference"));
 
-  const profile = await db.profile.findUniqueOrThrow({ where: { id: profileId } });
+  const profile = await getProfile();
+  if (!profile) return;
   const preferences: string[] = JSON.parse(profile.dietaryPreferences);
 
   await db.profile.update({
-    where: { id: profileId },
+    where: { id: profile.id },
     data: { dietaryPreferences: JSON.stringify(preferences.filter((p) => p !== preference)) },
   });
 
@@ -41,12 +43,18 @@ export async function removeDietaryPreference(formData: FormData) {
 
 export async function removeDislikedIngredient(formData: FormData) {
   const id = String(formData.get("id"));
-  await db.dislikedIngredient.delete({ where: { id } });
+
+  const profile = await getProfile();
+  if (!profile) return;
+
+  await db.dislikedIngredient.deleteMany({ where: { id, profileId: profile.id } });
   revalidatePath("/profile");
 }
 
-export async function generateProgressFeedbackAction(formData: FormData) {
-  const profileId = String(formData.get("profileId"));
+export async function generateProgressFeedbackAction() {
+  const profile = await getProfile();
+  if (!profile) return;
+  const profileId = profile.id;
 
   const nutritionPlan = await getActiveNutritionPlan(profileId);
   if (!nutritionPlan) return;
@@ -92,8 +100,10 @@ export async function generateProgressFeedbackAction(formData: FormData) {
 // unscoped deleteMany()s did. The Supabase auth account stays intact, so
 // the user is still logged in afterward; getProfile() returning null then
 // sends them straight back to onboarding, same as before.
-export async function resetApp(formData: FormData) {
-  const profileId = String(formData.get("profileId"));
+export async function resetApp() {
+  const profile = await getProfile();
+  if (!profile) return;
+  const profileId = profile.id;
 
   const nutritionPlans = await db.nutritionPlan.findMany({ where: { profileId }, select: { id: true } });
   const nutritionPlanIds = nutritionPlans.map((p) => p.id);

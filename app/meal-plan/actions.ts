@@ -11,7 +11,7 @@ import {
   type MealResult,
   type MealPlanResult,
 } from "@/lib/ai/mealPlan";
-import { getProfileConstraints, addDislikedIngredientIfNew } from "@/lib/session";
+import { getProfile, getProfileConstraints, addDislikedIngredientIfNew } from "@/lib/session";
 import { toMealResult, mealFields, disconnectMealLogs } from "@/lib/meals";
 import type { NutritionPlan } from "@prisma/client";
 
@@ -34,10 +34,15 @@ async function savePreference(profileId: string, currentPreferences: string[], f
 
 export async function generateMealPlanAction(formData: FormData) {
   const nutritionPlanId = String(formData.get("nutritionPlanId"));
-  const profileId = String(formData.get("profileId"));
 
-  const nutritionPlan = await db.nutritionPlan.findUniqueOrThrow({ where: { id: nutritionPlanId } });
-  const { conditions, dietaryPreferences, dislikedIngredients } = await getProfileConstraints(profileId);
+  const profile = await getProfile();
+  if (!profile) return;
+
+  const nutritionPlan = await db.nutritionPlan.findFirst({
+    where: { id: nutritionPlanId, profileId: profile.id },
+  });
+  if (!nutritionPlan) return;
+  const { conditions, dietaryPreferences, dislikedIngredients } = await getProfileConstraints(profile.id);
 
   const result = await generateMealPlan(nutritionPlan, conditions, dietaryPreferences, dislikedIngredients);
 
@@ -83,17 +88,20 @@ async function regenerateAffectedMeal(
 }
 
 export async function dislikeIngredient(formData: FormData) {
-  const profileId = String(formData.get("profileId"));
   const mealPlanId = String(formData.get("mealPlanId"));
   const ingredient = String(formData.get("ingredient"));
 
-  const dislikedIngredients = await addDislikedIngredientIfNew(profileId, ingredient);
+  const profile = await getProfile();
+  if (!profile) return;
 
-  const mealPlan = await db.mealPlan.findUniqueOrThrow({
-    where: { id: mealPlanId },
+  const mealPlan = await db.mealPlan.findFirst({
+    where: { id: mealPlanId, nutritionPlan: { profileId: profile.id } },
     include: { days: { include: { meals: true } }, nutritionPlan: true },
   });
-  const { conditions, dietaryPreferences } = await getProfileConstraints(profileId);
+  if (!mealPlan) return;
+
+  const dislikedIngredients = await addDislikedIngredientIfNew(profile.id, ingredient);
+  const { conditions, dietaryPreferences } = await getProfileConstraints(profile.id);
 
   const affectedMeals = mealPlan.days
     .flatMap((day) => day.meals)
@@ -121,6 +129,14 @@ export async function dislikeIngredient(formData: FormData) {
 export async function removeMeal(formData: FormData) {
   const mealId = String(formData.get("mealId"));
 
+  const profile = await getProfile();
+  if (!profile) return;
+
+  const meal = await db.meal.findFirst({
+    where: { id: mealId, mealPlanDay: { mealPlan: { nutritionPlan: { profileId: profile.id } } } },
+  });
+  if (!meal) return;
+
   await db.$transaction([disconnectMealLogs([mealId]), db.meal.delete({ where: { id: mealId } })]);
 
   revalidatePath("/today");
@@ -133,10 +149,14 @@ export async function regenerateDayAction(formData: FormData) {
   const feedback = String(formData.get("feedback") ?? "").trim();
   if (!feedback) return;
 
-  const day = await db.mealPlanDay.findUniqueOrThrow({
-    where: { id: dayId },
+  const profile = await getProfile();
+  if (!profile) return;
+
+  const day = await db.mealPlanDay.findFirst({
+    where: { id: dayId, mealPlan: { nutritionPlan: { profileId: profile.id } } },
     include: { meals: true, mealPlan: { include: { nutritionPlan: true } } },
   });
+  if (!day) return;
   const profileId = day.mealPlan.nutritionPlan.profileId;
   const { conditions, dietaryPreferences, dislikedIngredients } = await getProfileConstraints(profileId);
 
@@ -169,10 +189,14 @@ export async function reviseMealPlanAction(formData: FormData) {
   const feedback = String(formData.get("feedback") ?? "").trim();
   if (!feedback) return;
 
-  const mealPlan = await db.mealPlan.findUniqueOrThrow({
-    where: { id: mealPlanId },
+  const profile = await getProfile();
+  if (!profile) return;
+
+  const mealPlan = await db.mealPlan.findFirst({
+    where: { id: mealPlanId, nutritionPlan: { profileId: profile.id } },
     include: { days: { include: { meals: true }, orderBy: { dayOfWeek: "asc" } }, nutritionPlan: true },
   });
+  if (!mealPlan) return;
   const profileId = mealPlan.nutritionPlan.profileId;
   const { conditions, dietaryPreferences, dislikedIngredients } = await getProfileConstraints(profileId);
 
@@ -220,17 +244,30 @@ export async function reviseMealPlanAction(formData: FormData) {
 
 export async function acceptMealPlan(formData: FormData) {
   const mealPlanId = String(formData.get("mealPlanId"));
-  await db.mealPlan.update({ where: { id: mealPlanId }, data: { status: "ACCEPTED" } });
+
+  const profile = await getProfile();
+  if (!profile) return;
+
+  const result = await db.mealPlan.updateMany({
+    where: { id: mealPlanId, nutritionPlan: { profileId: profile.id } },
+    data: { status: "ACCEPTED" },
+  });
+  if (result.count === 0) return;
+
   redirect("/today");
 }
 
 export async function regenerateWholeMealPlan(formData: FormData) {
   const mealPlanId = String(formData.get("mealPlanId"));
 
-  const mealPlan = await db.mealPlan.findUniqueOrThrow({
-    where: { id: mealPlanId },
+  const profile = await getProfile();
+  if (!profile) return;
+
+  const mealPlan = await db.mealPlan.findFirst({
+    where: { id: mealPlanId, nutritionPlan: { profileId: profile.id } },
     include: { days: { include: { meals: true } } },
   });
+  if (!mealPlan) return;
   const mealIds = mealPlan.days.flatMap((day) => day.meals.map((m) => m.id));
   const dayIds = mealPlan.days.map((d) => d.id);
 

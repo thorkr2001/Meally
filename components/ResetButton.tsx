@@ -1,6 +1,6 @@
 "use client";
 
-export function ResetButton({ profileId, action }: { profileId: string; action: (formData: FormData) => void }) {
+export function ResetButton({ action }: { action: () => void }) {
   return (
     <form
       action={action}
@@ -10,7 +10,6 @@ export function ResetButton({ profileId, action }: { profileId: string; action: 
         }
       }}
     >
-      <input type="hidden" name="profileId" value={profileId} />
       <button
         type="submit"
         className="w-full rounded-2xl border-[1.5px] border-dashed border-coral/60 px-4 py-3 text-[13px] font-semibold text-coral-text hover:bg-coral/5"
