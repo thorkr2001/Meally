@@ -81,6 +81,22 @@ handlers for app mutations.
   descriptions and research notes) — output tokens cost several times more
   than input tokens, and this is a real per-user cost the app owner is
   tracking, not a style preference.
+- Static instruction text (constraint/realism/variety notes, research
+  methodology, the final tool-call instruction) is sent via `system` with a
+  `cache_control: {type: "ephemeral"}` breakpoint, never interpolated into the
+  per-call prompt string — this lets repeated same-scope calls (e.g. three
+  `regenerateMeal` calls firing from one `dislikeIngredient` action, or
+  several `reviseMealPlan` calls in one editing session) read that prefix
+  from cache instead of paying full input-token price every time. Keep this
+  split (static → `system`, per-call data → the user message) for any new AI
+  call; changing the tool set or model between calls invalidates the cache
+  entirely, so it only pays off for repeated calls of the *same* function.
+- `lib/ai/mealPlan.ts` also grounds meal suggestions in real-world data: a
+  `researchMealFacts()` call (`web_search`, capped per scope — 2 searches for
+  a single meal, 4 for a day, 10 for a full week) proposes and verifies real
+  dishes' prep time and nutrition *before* the forced-tool call that returns
+  the final `MealResult`(s), so `prepMinutes`/calories are checked against
+  actual sources rather than the model's own guess.
 
 ### `lib/session.ts` vs `lib/meals.ts`
 
@@ -113,6 +129,19 @@ so it becomes a standing constraint for every future generation — otherwise
 it's forgotten the moment that one call completes. It's visible and
 individually removable on the Profile page's "Your food preferences" list.
 
+### Layout & navigation
+
+`components/AppShell.tsx` decides per-route whether to render the desktop
+sidebar shell (`components/Sidebar.tsx`, `hidden md:flex`) or let
+`components/BottomNav.tsx` (`md:hidden`, fixed to the viewport bottom) take
+over on phones/small tablets — both read the same tab list from
+`components/navTabs.tsx` so adding a nav destination means editing one file,
+not two. `/onboarding` and `/plan/*` opt out of the shell entirely (centered
+card, no nav) via `AppShell`'s `NO_SHELL_PREFIXES` check. The outer shell's
+rounding/shadow/padding (`sm:rounded-[28px] sm:shadow-shell` etc. in
+`AppShell.tsx`, `sm:px-5 sm:py-8` in `app/layout.tsx`) only applies at `sm`+
+— below that the app is edge-to-edge, not a shrunk floating card.
+
 ### Progress tracking
 
 `lib/progress.ts` is pure deterministic logic (no AI) evaluating each day's
@@ -122,3 +151,48 @@ flag "under" (they're minimums), sugar only flags "over" (it's a ceiling). The
 AI narrative on top (`lib/ai/progressFeedback.ts`) is cached in the
 `ProgressFeedback` table (one row per profile, upserted) and only regenerated
 when the user clicks the button — never automatically, to control API cost.
+
+## Deploying to Vercel + Supabase
+
+The app currently runs on local SQLite (`prisma/schema.prisma`'s
+`datasource db { provider = "sqlite" }`). Moving to Supabase Postgres is a
+deliberate, not-yet-applied step — do it in this order once a Supabase
+project exists, so local dev never breaks mid-way:
+
+1. **Back up first.** `npx tsx scripts/export-data.ts > backup.json` dumps
+   every table (in FK-safe order) from whatever `DATABASE_URL` currently
+   points to. Do this against the live SQLite `dev.db` before touching
+   anything — it's the only copy of the real onboarded profile/plan/history.
+2. **Get two connection strings** from the Supabase dashboard → Project
+   Settings → Database: the **pooled** one (port 6543, `?pgbouncer=true`) and
+   the **direct** one (port 5432). Prisma needs both — pooled for the app at
+   runtime (serverless functions can't hold long-lived connections), direct
+   for running migrations (pgbouncer's transaction mode breaks Prisma's
+   migration engine).
+3. **Update `prisma/schema.prisma`**:
+   ```prisma
+   datasource db {
+     provider  = "postgresql"
+     url       = env("DATABASE_URL")   // pooled, port 6543
+     directUrl = env("DIRECT_URL")     // direct, port 5432
+   }
+   ```
+4. **Set `DATABASE_URL` and `DIRECT_URL`** in `.env` (local) to the two
+   strings from step 2 — see `.env.example` for the shape.
+5. **Run `npx prisma migrate dev --name init_postgres`** — this creates a
+   fresh Postgres-native migration history (the existing SQLite migrations
+   under `prisma/migrations/` don't apply to Postgres; a fresh history is
+   expected here, not a bug).
+6. **Restore the data**: `npx tsx scripts/import-data.ts backup.json`.
+7. **Vercel**: import the GitHub repo at vercel.com/new (Next.js is
+   auto-detected, no `vercel.json` needed). Set the same three env vars
+   (`DATABASE_URL`, `DIRECT_URL`, `ANTHROPIC_API_KEY`) in the Vercel
+   project's Settings → Environment Variables, then deploy. `package.json`'s
+   `postinstall: "prisma generate"` script (already in place) makes sure the
+   Prisma client regenerates on every Vercel build.
+
+After this migration, the Windows/SQLite `EPERM` gotcha above no longer
+applies (no local file to lock), and `lib/session.ts`'s case-insensitive
+disliked-ingredient dedup (`addDislikedIngredientIfNew`) could in principle
+be replaced by a Postgres citext/functional index — left as-is since the
+existing JS-side check still works correctly on Postgres.
