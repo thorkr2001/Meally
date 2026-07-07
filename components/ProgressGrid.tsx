@@ -19,9 +19,9 @@ const METRIC_LABELS: Record<keyof DayEvaluation["status"], string> = {
 };
 
 const STATUS_STYLE: Record<MetricStatus, { symbol: string; className: string }> = {
-  hit: { symbol: "✓", className: "bg-[#0ca30c]/15 text-[#0ca30c]" },
-  under: { symbol: "▼", className: "bg-[#fab219]/20 text-[#a66a00]" },
-  over: { symbol: "▲", className: "bg-[#d03b3b]/15 text-[#d03b3b]" },
+  hit: { symbol: "✓", className: "bg-primary/15 text-primary-hover" },
+  under: { symbol: "▼", className: "bg-amber/20 text-amber-text" },
+  over: { symbol: "▲", className: "bg-coral/15 text-coral-text" },
 };
 
 function formatDayLabel(dateStr: string): string {
@@ -31,7 +31,7 @@ function formatDayLabel(dateStr: string): string {
 
 export function ProgressGrid({ days }: { days: DayEvaluation[] }) {
   if (days.length === 0) {
-    return <p className="text-sm text-neutral-400">Log a few meals to start tracking your progress.</p>;
+    return <p className="text-sm text-ink-faint">Log a few meals to start tracking your progress.</p>;
   }
 
   return (
@@ -39,9 +39,9 @@ export function ProgressGrid({ days }: { days: DayEvaluation[] }) {
       <table className="w-full min-w-[420px] border-collapse text-xs">
         <thead>
           <tr>
-            <th className="pb-1.5 text-left font-medium text-neutral-400">Day</th>
+            <th className="pb-1.5 text-left font-semibold text-ink-soft">Day</th>
             {METRIC_ORDER.map((metric) => (
-              <th key={metric} className="pb-1.5 text-center font-medium text-neutral-400">
+              <th key={metric} className="pb-1.5 text-center font-semibold text-ink-soft">
                 {METRIC_LABELS[metric]}
               </th>
             ))}
@@ -49,8 +49,8 @@ export function ProgressGrid({ days }: { days: DayEvaluation[] }) {
         </thead>
         <tbody>
           {days.map((day) => (
-            <tr key={day.date} className="border-t border-neutral-100">
-              <td className="py-1.5 pr-2 font-medium text-neutral-600">{formatDayLabel(day.date)}</td>
+            <tr key={day.date} className="border-t border-border-light">
+              <td className="py-1.5 pr-2 font-semibold text-ink">{formatDayLabel(day.date)}</td>
               {METRIC_ORDER.map((metric) => {
                 const status = day.status[metric];
                 const style = STATUS_STYLE[status];
@@ -69,7 +69,7 @@ export function ProgressGrid({ days }: { days: DayEvaluation[] }) {
           ))}
         </tbody>
       </table>
-      <p className="mt-2 text-[11px] text-neutral-400">✓ on target · ▼ under · ▲ over (over ceiling for sugar)</p>
+      <p className="mt-2 text-[11px] text-ink-faint">✓ on target · ▼ under · ▲ over (over ceiling for sugar)</p>
     </div>
   );
 }

@@ -1,20 +1,17 @@
 import { redirect } from "next/navigation";
 import { getActiveNutritionPlan, getDraftMealPlan, getActiveMealPlan, getProfile } from "@/lib/session";
+import { currentDayOfWeek } from "@/lib/streaks";
 import {
   generateMealPlanAction,
-  dislikeIngredient,
   acceptMealPlan,
   regenerateWholeMealPlan,
-  regenerateDayAction,
   reviseMealPlanAction,
 } from "./actions";
 import { SubmitButton } from "@/components/SubmitButton";
 import { ConfirmForm } from "@/components/ConfirmForm";
-import { MealRecipeInfo } from "@/components/MealRecipeInfo";
+import { MealPlanDays } from "@/components/MealPlanDays";
 
 export const dynamic = "force-dynamic";
-
-const DAY_NAMES = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
 
 export default async function MealPlanPage() {
   const profile = await getProfile();
@@ -28,9 +25,9 @@ export default async function MealPlanPage() {
 
   if (!mealPlan) {
     return (
-      <div className="mx-auto max-w-md px-6 py-10 text-center">
-        <h1 className="text-2xl font-bold">Let&apos;s build your meal plan</h1>
-        <p className="mt-2 text-sm text-neutral-500">
+      <div className="text-center">
+        <h1 className="font-display text-[28px] font-bold text-ink">Let&apos;s build your meal plan</h1>
+        <p className="mt-2 text-sm text-ink-soft">
           We&apos;ll create a full week of meals that hits your calorie and macro targets.
         </p>
         <form action={generateMealPlanAction} className="mt-6">
@@ -38,7 +35,7 @@ export default async function MealPlanPage() {
           <input type="hidden" name="profileId" value={profile.id} />
           <SubmitButton
             pendingText="Building your weekly meal plan..."
-            className="w-full rounded-lg bg-emerald-600 px-4 py-3 font-semibold text-white hover:bg-emerald-700"
+            className="w-full rounded-2xl bg-primary px-4 py-3.5 text-[15px] font-bold text-white hover:bg-primary-hover"
           >
             Generate my weekly meal plan
           </SubmitButton>
@@ -48,101 +45,46 @@ export default async function MealPlanPage() {
   }
 
   return (
-    <div className="mx-auto max-w-2xl px-6 py-10">
-      <h1 className="text-2xl font-bold">Your weekly meal plan</h1>
-      <p className="mt-1 text-sm text-neutral-500">
-        Tap an ingredient you don&apos;t like to swap it out of that meal.
+    <div>
+      <h1 className="font-display text-[28px] font-bold text-ink">Your weekly meal plan</h1>
+      <p className="mt-1.5 text-sm text-ink-soft">
+        Tap a day to review it, tap an ingredient you don&apos;t like to swap it out.
       </p>
 
-      <div className="mt-6 flex flex-col gap-6">
-        {mealPlan.days.map((day) => (
-          <div key={day.id} className="rounded-xl border border-neutral-200 bg-white p-4">
-            <h2 className="font-semibold">{DAY_NAMES[day.dayOfWeek]}</h2>
-            <div className="mt-3 flex flex-col gap-4">
-              {day.meals.map((meal) => {
-                const ingredients: string[] = JSON.parse(meal.ingredients);
-                return (
-                  <div key={meal.id} className="border-t border-neutral-100 pt-3 first:border-none first:pt-0">
-                    <div className="flex items-baseline justify-between">
-                      <span className="text-xs font-semibold uppercase tracking-wide text-emerald-600">
-                        {meal.type}
-                      </span>
-                      <span className="text-xs text-neutral-400">{meal.calories} kcal</span>
-                    </div>
-                    <p className="font-medium">{meal.name}</p>
-                    <p className="text-sm text-neutral-500">{meal.description}</p>
-                    <div className="mt-2 flex flex-wrap gap-1.5">
-                      {ingredients.map((ingredient) => (
-                        <form key={ingredient} action={dislikeIngredient}>
-                          <input type="hidden" name="profileId" value={profile.id} />
-                          <input type="hidden" name="mealPlanId" value={mealPlan.id} />
-                          <input type="hidden" name="ingredient" value={ingredient} />
-                          <SubmitButton
-                            pendingText="Swapping..."
-                            className="rounded-full border border-neutral-200 px-2.5 py-1 text-xs text-neutral-600 hover:border-red-300 hover:bg-red-50 hover:text-red-600"
-                          >
-                            <span title="Don't like this">{ingredient} ✕</span>
-                          </SubmitButton>
-                        </form>
-                      ))}
-                    </div>
-                    <p className="mt-1.5 text-xs text-neutral-400">
-                      P {meal.proteinG}g · C {meal.carbsG}g · F {meal.fatG}g · Sugar {meal.sugarG}g · Fiber{" "}
-                      {meal.fiberG}g
-                    </p>
-                    <MealRecipeInfo sourceUrl={meal.sourceUrl} notes={meal.notes} />
-                  </div>
-                );
-              })}
-            </div>
-
-            <form action={regenerateDayAction} className="mt-3 flex gap-2 border-t border-neutral-100 pt-3">
-              <input type="hidden" name="dayId" value={day.id} />
-              <input
-                type="text"
-                name="feedback"
-                required
-                placeholder={`What do you want changed for ${DAY_NAMES[day.dayOfWeek]}?`}
-                className="flex-1 rounded-lg border border-neutral-300 px-3 py-1.5 text-sm"
-              />
-              <SubmitButton
-                pendingText="Updating..."
-                className="rounded-lg border border-neutral-300 px-3 py-1.5 text-sm font-medium hover:bg-neutral-50"
-              >
-                Update day
-              </SubmitButton>
-            </form>
-          </div>
-        ))}
-      </div>
+      <MealPlanDays
+        days={mealPlan.days}
+        profileId={profile.id}
+        mealPlanId={mealPlan.id}
+        initialDay={currentDayOfWeek()}
+      />
 
       <form
         action={reviseMealPlanAction}
-        className="mt-6 flex flex-col gap-2 rounded-xl border border-neutral-200 bg-white p-4"
+        className="mt-5 flex flex-col gap-2.5 rounded-2xl bg-white p-5"
       >
         <input type="hidden" name="mealPlanId" value={mealPlan.id} />
-        <label className="text-sm font-medium">Feedback on the whole week?</label>
+        <label className="text-[13px] font-semibold text-ink">Feedback on the whole week?</label>
         <textarea
           name="feedback"
           rows={2}
           required
           placeholder="e.g. more variety in lunches, less repetition, swap out red meat"
-          className="rounded-lg border border-neutral-300 px-3 py-2 text-sm"
+          className="rounded-xl border-[1.5px] border-border-light px-3.5 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-1"
         />
         <SubmitButton
           pendingText="Rebuilding your week..."
-          className="rounded-lg border border-neutral-300 px-4 py-2 font-medium hover:bg-neutral-50"
+          className="self-start rounded-xl border-[1.5px] border-border-light px-4 py-2.5 text-sm font-semibold text-ink hover:bg-app-bg/40"
         >
           Regenerate with feedback
         </SubmitButton>
       </form>
 
       {mealPlan.status === "DRAFT" && (
-        <form action={acceptMealPlan} className="mt-8">
+        <form action={acceptMealPlan} className="mt-6">
           <input type="hidden" name="mealPlanId" value={mealPlan.id} />
           <button
             type="submit"
-            className="w-full rounded-lg bg-emerald-600 px-4 py-3 font-semibold text-white hover:bg-emerald-700"
+            className="w-full rounded-2xl bg-primary px-4 py-3.5 text-[15px] font-bold text-white hover:bg-primary-hover"
           >
             Accept my meal plan
           </button>
@@ -157,7 +99,7 @@ export default async function MealPlanPage() {
         <input type="hidden" name="mealPlanId" value={mealPlan.id} />
         <SubmitButton
           pendingText="Regenerating your whole meal plan..."
-          className="w-full rounded-lg border border-neutral-300 px-4 py-3 font-medium hover:bg-neutral-50"
+          className="w-full rounded-2xl border-[1.5px] border-border-light px-4 py-3 text-sm font-semibold text-ink hover:bg-app-bg/40"
         >
           Not right? Regenerate the whole plan
         </SubmitButton>

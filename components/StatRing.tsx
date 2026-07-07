@@ -1,8 +1,12 @@
+"use client";
+
+import { useEffect, useState } from "react";
+
 const RING_COLORS = {
-  calories: { light: "#2a78d6", dark: "#3987e5" },
-  protein: { light: "#1baf7a", dark: "#199e70" },
-  carbs: { light: "#eda100", dark: "#c98500" },
-  fat: { light: "#008300", dark: "#008300" },
+  calories: "var(--color-coral)",
+  protein: "var(--color-teal-accent)",
+  carbs: "var(--color-violet)",
+  fat: "var(--color-yellowgreen)",
 } as const;
 
 export function StatRing({
@@ -18,63 +22,50 @@ export function StatRing({
   unit: string;
   metric: keyof typeof RING_COLORS;
 }) {
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    const raf = requestAnimationFrame(() => {
+      setTimeout(() => setMounted(true), 80);
+    });
+    return () => cancelAnimationFrame(raf);
+  }, []);
+
   const pct = target > 0 ? Math.min(value / target, 1) : 0;
-  const radius = 34;
+  const radius = 38;
   const circumference = 2 * Math.PI * radius;
-  const offset = circumference * (1 - pct);
+  const offset = mounted ? circumference * (1 - pct) : circumference;
   const color = RING_COLORS[metric];
 
   return (
-    <div className="flex flex-col items-center gap-1.5">
-      <svg
-        width="84"
-        height="84"
-        viewBox="0 0 84 84"
-        className="[--ring-color:var(--ring-light)] dark:[--ring-color:var(--ring-dark)]"
-        style={
-          {
-            "--ring-light": color.light,
-            "--ring-dark": color.dark,
-          } as React.CSSProperties
-        }
-      >
+    <div
+      aria-label={`${label}: ${Math.round(value)} of ${target}${unit}`}
+      className="flex flex-col items-center gap-2 rounded-[22px] bg-white px-2 py-[18px]"
+    >
+      <svg width={92} height={92} viewBox="0 0 92 92">
+        <circle cx={46} cy={46} r={radius} fill="none" stroke="var(--color-border-light)" strokeWidth={9} />
         <circle
-          cx="42"
-          cy="42"
+          cx={46}
+          cy={46}
           r={radius}
           fill="none"
-          stroke="currentColor"
-          strokeWidth="8"
-          className="text-neutral-200"
-        />
-        <circle
-          cx="42"
-          cy="42"
-          r={radius}
-          fill="none"
-          stroke="var(--ring-color)"
-          strokeWidth="8"
+          stroke={color}
+          strokeWidth={9}
           strokeLinecap="round"
           strokeDasharray={circumference}
           strokeDashoffset={offset}
-          transform="rotate(-90 42 42)"
+          transform="rotate(-90 46 46)"
+          className="transition-[stroke-dashoffset] duration-[1100ms] ease-[cubic-bezier(0.2,0.8,0.2,1)]"
         />
-        <text
-          x="42"
-          y="46"
-          textAnchor="middle"
-          className="fill-neutral-900 text-[15px] font-semibold"
-        >
-          {Math.round(value)}
-        </text>
       </svg>
-      <div className="text-center">
-        <p className="text-xs font-medium text-neutral-700">{label}</p>
-        <p className="text-[11px] text-neutral-400">
-          / {target}
-          {unit}
-        </p>
-      </div>
+      <p className="text-[15px] font-bold text-ink">
+        {Math.round(value)}
+        {unit}
+      </p>
+      <p className="text-[11px] text-ink-soft">
+        /{target}
+        {unit} {label.toLowerCase()}
+      </p>
     </div>
   );
 }

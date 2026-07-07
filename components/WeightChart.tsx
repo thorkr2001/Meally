@@ -1,7 +1,7 @@
 export function WeightChart({ logs }: { logs: { weightKg: number; loggedAt: Date }[] }) {
   if (logs.length < 2) {
     return (
-      <p className="text-sm text-neutral-400">Log your weight a few more times to see your trend.</p>
+      <p className="text-sm text-ink-faint">Log your weight a few more times to see your trend.</p>
     );
   }
 
@@ -24,25 +24,24 @@ export function WeightChart({ logs }: { logs: { weightKg: number; loggedAt: Date
 
   return (
     <svg width={width} height={height} viewBox={`0 0 ${width} ${height}`} className="w-full max-w-sm">
-      <path d={path} fill="none" stroke="#2a78d6" className="dark:stroke-[#3987e5]" strokeWidth="2" />
+      <path d={path} fill="none" stroke="var(--color-violet)" strokeWidth="2.5" />
       {points.map((p, i) => (
-        <circle key={i} cx={p.x} cy={p.y} r={i === points.length - 1 ? 4 : 3} fill="#2a78d6" className="dark:fill-[#3987e5]">
+        <circle key={i} cx={p.x} cy={p.y} r={i === points.length - 1 ? 4 : 3} fill="var(--color-violet)">
           <title>
             {p.loggedAt.toLocaleDateString()}: {p.weightKg} kg
           </title>
         </circle>
       ))}
-      <text x={points[0].x} y={points[0].y - 8} fontSize="10" fill="#898781" textAnchor="start">
+      <text x={points[0].x} y={points[0].y - 8} fontSize="11" fill="var(--color-ink-soft)" textAnchor="start">
         {points[0].weightKg}kg
       </text>
       <text
         x={points[points.length - 1].x}
         y={points[points.length - 1].y - 8}
-        fontSize="10"
-        fill="#0b0b0b"
-        className="dark:fill-white"
+        fontSize="11"
+        fill="var(--color-ink)"
         textAnchor="end"
-        fontWeight="600"
+        fontWeight="700"
       >
         {points[points.length - 1].weightKg}kg
       </text>

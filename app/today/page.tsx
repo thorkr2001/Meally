@@ -1,15 +1,23 @@
 import { redirect } from "next/navigation";
 import { db } from "@/lib/db";
 import { getActiveMealPlan, getActiveNutritionPlan, getProfile } from "@/lib/session";
-import { currentDayOfWeek } from "@/lib/streaks";
+import { computeStreak, currentDayOfWeek } from "@/lib/streaks";
 import { startOfToday } from "@/lib/meals";
 import { StatRing } from "@/components/StatRing";
 import { SubmitButton } from "@/components/SubmitButton";
 import { PortionLogger } from "@/components/PortionLogger";
 import { MealRecipeInfo } from "@/components/MealRecipeInfo";
+import { FlameIcon } from "@/components/FlameIcon";
 import { logMeal, unlogMeal, importRecipeAction, logQuickMeal } from "./actions";
 
 export const dynamic = "force-dynamic";
+
+function greeting(): string {
+  const hour = new Date().getHours();
+  if (hour < 12) return "Good morning";
+  if (hour < 18) return "Good afternoon";
+  return "Good evening";
+}
 
 export default async function TodayPage() {
   const profile = await getProfile();
@@ -24,10 +32,12 @@ export default async function TodayPage() {
   const today = startOfToday();
   const tomorrow = new Date(today.getTime() + 86400000);
 
-  const todaysLogs = await db.mealLog.findMany({
-    where: { loggedAt: { gte: today, lt: tomorrow } },
-  });
+  const [todaysLogs, allLogs] = await Promise.all([
+    db.mealLog.findMany({ where: { loggedAt: { gte: today, lt: tomorrow } } }),
+    db.mealLog.findMany({ select: { loggedAt: true } }),
+  ]);
   const loggedMealIds = new Set(todaysLogs.map((l) => l.mealId).filter(Boolean));
+  const streak = computeStreak(allLogs.map((l) => l.loggedAt));
 
   const totals = todaysLogs.reduce(
     (acc, log) => ({
@@ -42,38 +52,57 @@ export default async function TodayPage() {
   const day = mealPlan.days.find((d) => d.dayOfWeek === currentDayOfWeek());
 
   return (
-    <div className="mx-auto max-w-md px-6 py-8">
-      <h1 className="text-2xl font-bold">Today</h1>
+    <div>
+      <div className="flex items-start justify-between gap-4">
+        <div>
+          <h1 className="font-display text-[30px] font-bold text-ink">{greeting()}</h1>
+          <p className="mt-1 text-sm text-ink-soft">
+            {new Date().toLocaleDateString(undefined, { weekday: "long", month: "long", day: "numeric" })}
+          </p>
+        </div>
+        {streak > 0 && (
+          <div className="flex items-center gap-2 rounded-full bg-flame/15 px-4 py-2.5">
+            <FlameIcon size={14} />
+            <span className="text-sm font-bold text-flame-text">
+              {streak} day{streak === 1 ? "" : "s"} streak
+            </span>
+          </div>
+        )}
+      </div>
 
-      <div className="mt-6 grid grid-cols-4 gap-2 rounded-xl border border-neutral-200 bg-white p-4">
+      <div className="mt-7 grid grid-cols-2 gap-3.5 sm:grid-cols-4">
         <StatRing label="Calories" value={totals.calories} target={nutritionPlan.calories} unit="" metric="calories" />
         <StatRing label="Protein" value={totals.proteinG} target={nutritionPlan.proteinG} unit="g" metric="protein" />
         <StatRing label="Carbs" value={totals.carbsG} target={nutritionPlan.carbsG} unit="g" metric="carbs" />
         <StatRing label="Fat" value={totals.fatG} target={nutritionPlan.fatG} unit="g" metric="fat" />
       </div>
 
-      <div className="mt-6 flex flex-col gap-3">
+      <h2 className="mt-7 mb-3 font-display text-[17px] font-semibold text-ink">Today&apos;s meals</h2>
+      <div className="flex flex-col gap-2.5">
         {day?.meals.length ? (
           day.meals.map((meal) => {
             const logged = loggedMealIds.has(meal.id);
             return (
-              <div key={meal.id} className="rounded-xl border border-neutral-200 bg-white p-4">
-                <div className="flex items-start justify-between gap-3">
+              <div
+                key={meal.id}
+                className="rounded-2xl bg-white p-4 transition hover:-translate-y-0.5 hover:shadow-card-hover"
+              >
+                <div className="flex items-center justify-between gap-3">
                   <div>
-                    <span className="text-xs font-semibold uppercase tracking-wide text-emerald-600">
+                    <span className="text-[11px] font-bold tracking-wide text-coral-text uppercase">
                       {meal.type}
                     </span>
-                    <p className="font-medium">{meal.name}</p>
-                    <p className="text-xs text-neutral-400">{meal.calories} kcal (100% portion)</p>
+                    <p className="mt-0.5 font-semibold text-ink">{meal.name}</p>
+                    <p className="mt-0.5 text-xs text-ink-faint italic">{meal.calories} kcal (100% portion)</p>
                   </div>
                   {logged ? (
                     <form action={unlogMeal}>
                       <input type="hidden" name="mealId" value={meal.id} />
                       <SubmitButton
                         pendingText="Un-logging..."
-                        className="rounded-full bg-emerald-100 px-3 py-1.5 text-sm font-medium text-emerald-700 hover:bg-emerald-200"
+                        className="rounded-full bg-primary/15 px-4 py-2 text-sm font-bold text-primary-hover"
                       >
-                        ✓ Logged (undo)
+                        ✓ Logged
                       </SubmitButton>
                     </form>
                   ) : (
@@ -83,20 +112,17 @@ export default async function TodayPage() {
 
                 <MealRecipeInfo sourceUrl={meal.sourceUrl} notes={meal.notes} />
 
-                <form
-                  action={importRecipeAction}
-                  className="mt-3 flex gap-2 border-t border-neutral-100 pt-3"
-                >
+                <form action={importRecipeAction} className="mt-3 flex gap-2 border-t border-border-light pt-3">
                   <input type="hidden" name="mealId" value={meal.id} />
                   <input
                     type="url"
                     name="url"
                     placeholder="Paste a recipe link to use instead"
-                    className="flex-1 rounded-lg border border-neutral-300 px-3 py-1.5 text-sm"
+                    className="flex-1 rounded-lg border border-border-light px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-1"
                   />
                   <SubmitButton
                     pendingText="Reading recipe..."
-                    className="rounded-lg border border-neutral-300 px-3 py-1.5 text-sm font-medium hover:bg-neutral-50"
+                    className="rounded-lg border border-border-light px-3 py-1.5 text-sm font-medium hover:bg-app-bg/60"
                   >
                     Import
                   </SubmitButton>
@@ -105,27 +131,22 @@ export default async function TodayPage() {
             );
           })
         ) : (
-          <p className="text-sm text-neutral-500">No meals scheduled for today.</p>
+          <p className="text-sm text-ink-faint">No meals scheduled for today.</p>
         )}
       </div>
 
-      <div className="mt-6 rounded-xl border border-dashed border-neutral-300 bg-white p-4">
-        <p className="text-sm font-medium text-neutral-600">Ate something else?</p>
-        <p className="mt-0.5 text-xs text-neutral-400">
-          Plans change — quickly add anything not on your plan. We&apos;ll estimate the nutrition and add it
-          here (and to your meal plan) so you can adjust the portion and log it like any other meal.
-        </p>
-        <form action={logQuickMeal} className="mt-3 flex gap-2">
+      <div className="mt-5 flex items-center gap-2.5 rounded-2xl border-[1.5px] border-dashed border-border-light p-4">
+        <form action={logQuickMeal} className="flex flex-1 gap-2.5">
           <input
             type="text"
             name="description"
             required
-            placeholder="e.g. cheese toastie and an apple"
-            className="flex-1 rounded-lg border border-neutral-300 px-3 py-2 text-sm"
+            placeholder="Ate something else? e.g. cheese toastie"
+            className="flex-1 rounded-lg border border-border-light bg-white px-3.5 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-1"
           />
           <SubmitButton
             pendingText="Adding..."
-            className="rounded-lg bg-emerald-600 px-4 py-2 text-sm font-medium text-white hover:bg-emerald-700"
+            className="rounded-lg bg-sidebar px-4 py-2.5 text-sm font-bold text-white hover:opacity-90"
           >
             Add
           </SubmitButton>

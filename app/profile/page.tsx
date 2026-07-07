@@ -8,6 +8,7 @@ import { Celebration } from "@/components/Celebration";
 import { ResetButton } from "@/components/ResetButton";
 import { ProgressGrid } from "@/components/ProgressGrid";
 import { SubmitButton } from "@/components/SubmitButton";
+import { FlameIcon } from "@/components/FlameIcon";
 import {
   logWeight,
   resetApp,
@@ -68,8 +69,8 @@ export default async function ProfilePage() {
   }
 
   return (
-    <div className="mx-auto max-w-md px-6 py-8">
-      <h1 className="text-2xl font-bold">Profile</h1>
+    <div>
+      <h1 className="font-display text-[28px] font-bold text-ink">Profile</h1>
 
       <div className="mt-4 flex flex-col gap-3">
         {reachedGoal && <Celebration message="You reached your goal weight!" />}
@@ -78,29 +79,49 @@ export default async function ProfilePage() {
         )}
       </div>
 
-      <div className="mt-4 flex items-center gap-2 rounded-xl border border-neutral-200 bg-white p-4">
-        <span className="text-2xl">🔥</span>
-        <div>
-          <p className="text-lg font-bold leading-tight">{streak} day{streak === 1 ? "" : "s"}</p>
-          <p className="text-xs text-neutral-400">logging streak</p>
+      <div className="mt-5 grid grid-cols-1 gap-3.5 sm:grid-cols-2">
+        <div className="flex items-center gap-3.5 rounded-[20px] bg-white p-5">
+          <FlameIcon size={26} />
+          <div>
+            <p className="font-display text-[22px] font-bold text-ink">
+              {streak} day{streak === 1 ? "" : "s"}
+            </p>
+            <p className="text-xs text-ink-faint">logging streak</p>
+          </div>
+        </div>
+        <div className="rounded-[20px] bg-white p-5">
+          <div className="flex items-baseline justify-between">
+            <p className="text-[13px] font-semibold text-ink-soft">Current weight</p>
+            <p className="font-display text-xl font-bold text-ink">{currentWeight} kg</p>
+          </div>
+          {goalWeight != null && (
+            <>
+              <div className="mt-2.5 h-2 w-full rounded-full bg-border-light/60">
+                <div className="h-2 rounded-full bg-primary" style={{ width: `${progressPct ?? 0}%` }} />
+              </div>
+              <p className="mt-1.5 text-[11px] text-ink-faint">
+                Goal: {goalWeight} kg · {Math.round(progressPct ?? 0)}% there
+              </p>
+            </>
+          )}
         </div>
       </div>
 
       {nutritionPlan && (
-        <div className="mt-4 rounded-xl border border-neutral-200 bg-white p-4">
-          <p className="text-sm font-medium text-neutral-500">Your progress</p>
-          <p className="mt-0.5 text-xs text-neutral-400">Last {TRACKED_DAYS} days vs. your targets</p>
-          <div className="mt-3">
+        <div className="mt-3.5 rounded-[20px] bg-white p-5">
+          <p className="text-[13px] font-semibold text-ink-soft">Your progress</p>
+          <p className="mt-0.5 text-[11px] text-ink-faint">Last {TRACKED_DAYS} days vs. your targets</p>
+          <div className="mt-3.5">
             <ProgressGrid days={trackedDays} />
           </div>
 
           {(doingWell.length > 0 || improve.length > 0) && (
-            <div className="mt-4 border-t border-neutral-100 pt-3">
-              {progressFeedback && <p className="text-sm text-neutral-700">{progressFeedback.summary}</p>}
+            <div className="mt-4 border-t border-border-light pt-3.5">
+              {progressFeedback && <p className="text-sm text-ink">{progressFeedback.summary}</p>}
               {doingWell.length > 0 && (
                 <div className="mt-2">
-                  <p className="text-xs font-semibold uppercase tracking-wide text-emerald-600">Doing well</p>
-                  <ul className="mt-1 list-disc pl-4 text-sm text-neutral-600">
+                  <p className="text-xs font-bold tracking-wide text-primary-hover uppercase">Doing well</p>
+                  <ul className="mt-1 list-disc pl-4 text-sm text-ink-soft">
                     {doingWell.map((item, i) => (
                       <li key={i}>{item}</li>
                     ))}
@@ -109,8 +130,8 @@ export default async function ProfilePage() {
               )}
               {improve.length > 0 && (
                 <div className="mt-2">
-                  <p className="text-xs font-semibold uppercase tracking-wide text-amber-600">Room to improve</p>
-                  <ul className="mt-1 list-disc pl-4 text-sm text-neutral-600">
+                  <p className="text-xs font-bold tracking-wide text-amber-text uppercase">Room to improve</p>
+                  <ul className="mt-1 list-disc pl-4 text-sm text-ink-soft">
                     {improve.map((item, i) => (
                       <li key={i}>{item}</li>
                     ))}
@@ -125,7 +146,7 @@ export default async function ProfilePage() {
               <input type="hidden" name="profileId" value={profile.id} />
               <SubmitButton
                 pendingText="Analyzing your week..."
-                className="w-full rounded-lg border border-neutral-300 px-4 py-2 text-sm font-medium hover:bg-neutral-50"
+                className="w-full rounded-xl border-[1.5px] border-border-light px-4 py-2.5 text-sm font-semibold text-ink hover:bg-app-bg/40"
               >
                 {progressFeedback ? "Refresh feedback" : "Get feedback on my week"}
               </SubmitButton>
@@ -134,30 +155,12 @@ export default async function ProfilePage() {
         </div>
       )}
 
-      <div className="mt-4 rounded-xl border border-neutral-200 bg-white p-4">
-        <div className="flex items-baseline justify-between">
-          <p className="text-sm font-medium text-neutral-500">Current weight</p>
-          <p className="text-xl font-bold">{currentWeight} kg</p>
-        </div>
-        {goalWeight != null && (
-          <>
-            <div className="mt-2 h-2 w-full rounded-full bg-neutral-100">
-              <div
-                className="h-2 rounded-full bg-emerald-500"
-                style={{ width: `${progressPct ?? 0}%` }}
-              />
-            </div>
-            <p className="mt-1 text-xs text-neutral-400">
-              Goal: {goalWeight} kg · {Math.round(progressPct ?? 0)}% there
-            </p>
-          </>
-        )}
-        <div className="mt-4">
-          <WeightChart logs={weightLogs} />
-        </div>
+      <div className="mt-3.5 rounded-[20px] bg-white p-5">
+        <p className="mb-3 text-[13px] font-semibold text-ink-soft">Weight trend</p>
+        <WeightChart logs={weightLogs} />
       </div>
 
-      <form action={logWeight} className="mt-4 flex gap-2 rounded-xl border border-neutral-200 bg-white p-4">
+      <form action={logWeight} className="mt-3.5 flex items-center gap-2.5 rounded-2xl bg-white p-4">
         <input type="hidden" name="profileId" value={profile.id} />
         <input
           name="weightKg"
@@ -165,20 +168,20 @@ export default async function ProfilePage() {
           step="0.1"
           required
           placeholder="Log today's weight (kg)"
-          className="flex-1 rounded-lg border border-neutral-300 px-3 py-2"
+          className="flex-1 rounded-lg border-[1.5px] border-border-light px-3.5 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-1"
         />
         <button
           type="submit"
-          className="rounded-lg bg-emerald-600 px-4 py-2 font-medium text-white hover:bg-emerald-700"
+          className="rounded-lg bg-primary px-4 py-2.5 text-sm font-bold text-white hover:bg-primary-hover"
         >
           Save
         </button>
       </form>
 
       {(dietaryPreferences.length > 0 || dislikedIngredients.length > 0) && (
-        <div className="mt-4 rounded-xl border border-neutral-200 bg-white p-4">
-          <p className="text-sm font-medium text-neutral-500">Your food preferences</p>
-          <p className="mt-0.5 text-xs text-neutral-400">
+        <div className="mt-3.5 rounded-2xl bg-white p-5">
+          <p className="text-[13px] font-semibold text-ink-soft">Your food preferences</p>
+          <p className="mt-0.5 text-[11px] text-ink-faint">
             Applied to every future meal plan. Remove anything that shouldn&apos;t be permanent.
           </p>
           <div className="mt-3 flex flex-wrap gap-1.5">
@@ -189,7 +192,7 @@ export default async function ProfilePage() {
                 <button
                   type="submit"
                   title="Remove"
-                  className="rounded-full border border-neutral-200 px-2.5 py-1 text-xs text-neutral-600 hover:border-red-300 hover:bg-red-50 hover:text-red-600"
+                  className="rounded-full border border-border-light px-3 py-1.5 text-xs text-ink-soft hover:border-coral/50 hover:text-coral-text"
                 >
                   {preference} ✕
                 </button>
@@ -201,7 +204,7 @@ export default async function ProfilePage() {
                 <button
                   type="submit"
                   title="Remove"
-                  className="rounded-full border border-neutral-200 px-2.5 py-1 text-xs text-neutral-600 hover:border-red-300 hover:bg-red-50 hover:text-red-600"
+                  className="rounded-full border border-border-light px-3 py-1.5 text-xs text-ink-soft hover:border-coral/50 hover:text-coral-text"
                 >
                   🚫 {ingredient.name} ✕
                 </button>
@@ -211,7 +214,7 @@ export default async function ProfilePage() {
         </div>
       )}
 
-      <div className="mt-8">
+      <div className="mt-6">
         <ResetButton action={resetApp} />
       </div>
     </div>

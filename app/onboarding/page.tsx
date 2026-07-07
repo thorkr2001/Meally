@@ -1,57 +1,45 @@
 import { createProfile } from "./actions";
 import { SubmitButton } from "@/components/SubmitButton";
 
+const inputClass =
+  "rounded-xl border-[1.5px] border-border-light px-3.5 py-2.5 text-sm font-sans focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-1";
+const labelClass = "flex flex-col gap-1.5 text-[13px] font-semibold text-ink";
+
 export default function OnboardingPage() {
   return (
-    <div className="mx-auto max-w-md px-6 py-10">
-      <h1 className="text-2xl font-bold">Welcome to Meally</h1>
-      <p className="mt-1 text-sm text-neutral-500">
+    <div className="rounded-[28px] bg-white px-11 py-12 shadow-shell">
+      <span className="font-display text-base font-bold text-ink">Meally</span>
+      <h1 className="mt-2 font-display text-[32px] font-bold text-ink">Welcome to Meally</h1>
+      <p className="mt-2 text-[15px] leading-relaxed text-ink-soft">
         Tell us a bit about yourself so we can build your personalized nutrition plan.
       </p>
 
-      <form action={createProfile} className="mt-8 flex flex-col gap-5">
+      <form action={createProfile} className="mt-8 flex flex-col gap-4">
         <div className="grid grid-cols-2 gap-4">
-          <label className="flex flex-col gap-1 text-sm font-medium">
+          <label className={labelClass}>
             Weight (kg)
-            <input
-              name="weightKg"
-              type="number"
-              step="0.1"
-              required
-              className="rounded-lg border border-neutral-300 px-3 py-2"
-            />
+            <input name="weightKg" type="number" step="0.1" required className={inputClass} />
           </label>
-          <label className="flex flex-col gap-1 text-sm font-medium">
+          <label className={labelClass}>
             Height (cm)
-            <input
-              name="heightCm"
-              type="number"
-              step="0.1"
-              required
-              className="rounded-lg border border-neutral-300 px-3 py-2"
-            />
+            <input name="heightCm" type="number" step="0.1" required className={inputClass} />
           </label>
-          <label className="flex flex-col gap-1 text-sm font-medium">
+          <label className={labelClass}>
             Age
-            <input
-              name="age"
-              type="number"
-              required
-              className="rounded-lg border border-neutral-300 px-3 py-2"
-            />
+            <input name="age" type="number" required className={inputClass} />
           </label>
-          <label className="flex flex-col gap-1 text-sm font-medium">
+          <label className={labelClass}>
             Sex
-            <select name="sex" required className="rounded-lg border border-neutral-300 px-3 py-2">
+            <select name="sex" required className={inputClass}>
               <option value="FEMALE">Female</option>
               <option value="MALE">Male</option>
             </select>
           </label>
         </div>
 
-        <label className="flex flex-col gap-1 text-sm font-medium">
+        <label className={labelClass}>
           Activity level
-          <select name="activityLevel" required className="rounded-lg border border-neutral-300 px-3 py-2">
+          <select name="activityLevel" required className={inputClass}>
             <option value="SEDENTARY">Sedentary (little to no exercise)</option>
             <option value="LIGHT">Light (1-3 days/week)</option>
             <option value="MODERATE">Moderate (3-5 days/week)</option>
@@ -60,47 +48,38 @@ export default function OnboardingPage() {
           </select>
         </label>
 
-        <label className="flex flex-col gap-1 text-sm font-medium">
+        <label className={labelClass}>
           Goal
-          <select name="goalType" required className="rounded-lg border border-neutral-300 px-3 py-2">
+          <select name="goalType" required className={inputClass}>
             <option value="LOSE">Lose weight</option>
             <option value="MAINTAIN">Maintain weight</option>
             <option value="GAIN">Gain weight</option>
           </select>
         </label>
 
-        <label className="flex flex-col gap-1 text-sm font-medium">
+        <label className={labelClass}>
           Goal weight (kg) — optional
-          <input
-            name="goalWeightKg"
-            type="number"
-            step="0.1"
-            className="rounded-lg border border-neutral-300 px-3 py-2"
-          />
+          <input name="goalWeightKg" type="number" step="0.1" className={inputClass} />
         </label>
 
-        <label className="flex flex-col gap-1 text-sm font-medium">
-          Dietary preferences (comma-separated) — optional
-          <input
-            name="dietaryPreferences"
-            placeholder="vegetarian, halal, low-carb"
-            className="rounded-lg border border-neutral-300 px-3 py-2"
-          />
+        <label className={labelClass}>
+          Dietary preferences — optional
+          <input name="dietaryPreferences" placeholder="vegetarian, halal, low-carb" className={inputClass} />
         </label>
 
-        <label className="flex flex-col gap-1 text-sm font-medium">
-          Conditions or diagnoses (comma-separated) — optional
+        <label className={labelClass}>
+          Conditions or diagnoses — optional
           <textarea
             name="conditions"
             placeholder="type 2 diabetes, high blood pressure"
-            className="rounded-lg border border-neutral-300 px-3 py-2"
             rows={2}
+            className={`${inputClass} resize-y`}
           />
         </label>
 
         <SubmitButton
           pendingText="Researching & building your plan..."
-          className="mt-2 rounded-lg bg-emerald-600 px-4 py-3 font-semibold text-white hover:bg-emerald-700"
+          className="mt-3 w-full rounded-2xl bg-primary px-4 py-3.5 text-[15px] font-bold text-white hover:bg-primary-hover"
         >
           Build my nutrition plan
         </SubmitButton>

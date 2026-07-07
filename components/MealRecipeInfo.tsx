@@ -16,12 +16,12 @@ export function MealRecipeInfo({
           href={sourceUrl}
           target="_blank"
           rel="noreferrer"
-          className="mt-2 inline-block text-xs text-emerald-600 underline"
+          className="mt-2 inline-block text-xs text-primary-hover underline"
         >
           📖 View recipe
         </a>
       )}
-      {notes && <p className="mt-1 text-xs italic text-neutral-400">{notes}</p>}
+      {notes && <p className="mt-1 text-xs text-ink-faint italic">{notes}</p>}
     </div>
   );
 }

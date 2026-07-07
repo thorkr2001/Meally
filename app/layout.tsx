@@ -1,16 +1,18 @@
 import type { Metadata } from "next";
-import { Geist, Geist_Mono } from "next/font/google";
-import { BottomNav } from "@/components/BottomNav";
+import { Space_Grotesk, Inter } from "next/font/google";
+import { AppShell } from "@/components/AppShell";
 import "./globals.css";
 
-const geistSans = Geist({
-  variable: "--font-geist-sans",
+const spaceGrotesk = Space_Grotesk({
+  variable: "--font-space-grotesk",
   subsets: ["latin"],
+  weight: ["500", "600", "700"],
 });
 
-const geistMono = Geist_Mono({
-  variable: "--font-geist-mono",
+const inter = Inter({
+  variable: "--font-inter",
   subsets: ["latin"],
+  weight: ["400", "500", "600", "700", "800"],
 });
 
 export const metadata: Metadata = {
@@ -24,13 +26,11 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html
-      lang="en"
-      className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
-    >
-      <body className="min-h-full flex flex-col bg-neutral-50 text-neutral-900">
-        <main className="flex-1 pb-20">{children}</main>
-        <BottomNav />
+    <html lang="en" className={`${spaceGrotesk.variable} ${inter.variable} h-full`}>
+      <body className="min-h-full bg-app-bg font-sans text-ink antialiased">
+        <div className="flex min-h-full flex-col items-center px-5 py-8 sm:py-10">
+          <AppShell>{children}</AppShell>
+        </div>
       </body>
     </html>
   );

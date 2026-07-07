@@ -5,6 +5,12 @@ import { SubmitButton } from "@/components/SubmitButton";
 
 export const dynamic = "force-dynamic";
 
+const inputClass =
+  "rounded-xl border-[1.5px] border-border-light px-3.5 py-2.5 text-sm font-sans focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-1";
+const labelClass = "flex flex-col gap-1.5 text-[13px] font-semibold text-ink";
+const outlineButtonClass =
+  "rounded-xl border-[1.5px] border-border-light px-4 py-2.5 text-sm font-semibold text-ink hover:bg-app-bg/60";
+
 export default async function PlanReviewPage() {
   const profile = await getProfile();
   if (!profile) redirect("/onboarding");
@@ -13,13 +19,13 @@ export default async function PlanReviewPage() {
   if (!plan) redirect("/onboarding");
 
   return (
-    <div className="mx-auto max-w-md px-6 py-10">
-      <h1 className="text-2xl font-bold">Your nutrition plan</h1>
-      <p className="mt-1 text-sm text-neutral-500">
+    <div className="rounded-[28px] bg-white px-11 py-12 shadow-shell">
+      <h1 className="font-display text-[28px] font-bold text-ink">Your nutrition plan</h1>
+      <p className="mt-2 text-sm text-ink-soft">
         Review your daily targets. Tweak the numbers directly, or ask for a change below.
       </p>
 
-      <div className="mt-6 rounded-xl border border-neutral-200 bg-white p-4 text-sm text-neutral-600">
+      <div className="mt-6 rounded-2xl border-[1.5px] border-border-light bg-app-bg/40 p-4 text-sm text-ink-soft">
         {plan.researchNotes}
       </div>
 
@@ -36,38 +42,27 @@ export default async function PlanReviewPage() {
               ["fiberG", "Fiber (g)"],
             ] as const
           ).map(([field, label]) => (
-            <label key={field} className="flex flex-col gap-1 text-sm font-medium">
+            <label key={field} className={labelClass}>
               {label}
-              <input
-                name={field}
-                type="number"
-                defaultValue={plan[field]}
-                className="rounded-lg border border-neutral-300 px-3 py-2"
-              />
+              <input name={field} type="number" defaultValue={plan[field]} className={inputClass} />
             </label>
           ))}
         </div>
-        <SubmitButton
-          pendingText="Saving..."
-          className="rounded-lg border border-neutral-300 px-4 py-2 font-medium hover:bg-neutral-50"
-        >
+        <SubmitButton pendingText="Saving..." className={outlineButtonClass}>
           Save changes
         </SubmitButton>
       </form>
 
       <form action={revisePlan} className="mt-6 flex flex-col gap-2">
         <input type="hidden" name="id" value={plan.id} />
-        <label className="text-sm font-medium">Want something different?</label>
+        <label className={labelClass}>Want something different?</label>
         <textarea
           name="feedback"
           rows={2}
           placeholder="e.g. a bit more protein, lower the carbs"
-          className="rounded-lg border border-neutral-300 px-3 py-2 text-sm"
+          className={`${inputClass} resize-y`}
         />
-        <SubmitButton
-          pendingText="Revising your plan..."
-          className="rounded-lg border border-neutral-300 px-4 py-2 font-medium hover:bg-neutral-50"
-        >
+        <SubmitButton pendingText="Revising your plan..." className={`${outlineButtonClass} self-start`}>
           Regenerate with feedback
         </SubmitButton>
       </form>
@@ -76,7 +71,7 @@ export default async function PlanReviewPage() {
         <input type="hidden" name="id" value={plan.id} />
         <SubmitButton
           pendingText="Saving..."
-          className="w-full rounded-lg bg-emerald-600 px-4 py-3 font-semibold text-white hover:bg-emerald-700"
+          className="w-full rounded-2xl bg-primary px-4 py-3.5 text-[15px] font-bold text-white hover:bg-primary-hover"
         >
           Accept plan &amp; build my meal plan
         </SubmitButton>
