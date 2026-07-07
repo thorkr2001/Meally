@@ -36,6 +36,15 @@ fetches the first one by `createdAt`. `app/page.tsx` is the router: it redirects
 to `/onboarding`, `/plan/review`, `/meal-plan`, or `/today` depending on which of
 Profile / accepted NutritionPlan / accepted MealPlan exist yet.
 
+There is deliberately no per-visitor isolation — anyone hitting the deployed
+URL gets the same shared database and the same one profile, full read/write
+(they'd land straight on `/today` too, since a profile already exists).
+`middleware.ts` is the mitigation for this once deployed publicly: it gates
+every route behind a single shared password (`SITE_PASSWORD` env var, hashed
+into a cookie by `app/login/actions.ts`) rather than building real multi-user
+auth, since real auth would contradict the single-profile model everywhere
+else in the app. No `SITE_PASSWORD` set → no gate (intentional for local dev).
+
 Every data-dependent page must declare `export const dynamic = "force-dynamic"`
 — otherwise Next statically prerenders it at build time against whatever DB
 state exists then, which silently breaks correctness for a mutating app like
@@ -182,9 +191,11 @@ one-off use.
 ### Deploying to Vercel
 
 Import the GitHub repo at vercel.com/new — Next.js is auto-detected, no
-`vercel.json` needed. Set `DATABASE_URL`, `DIRECT_URL`, and
-`ANTHROPIC_API_KEY` in the project's Settings → Environment Variables (same
-values as local `.env`), then deploy. `package.json`'s
+`vercel.json` needed. Set `DATABASE_URL`, `DIRECT_URL`, `ANTHROPIC_API_KEY`,
+and **`SITE_PASSWORD`** in the project's Settings → Environment Variables
+(same values as local `.env`) — the last one is what keeps the deployed URL
+from being wide open to anyone who finds it, since the app has no other auth.
+Then deploy. `package.json`'s
 `postinstall: "prisma generate"` script makes sure the Prisma client
 regenerates on every Vercel build. Four pages (`onboarding`, `plan/review`,
 `meal-plan`, `today`) export `maxDuration = 60` since their Server Actions run
