@@ -8,7 +8,16 @@ export async function signup(formData: FormData) {
   const password = String(formData.get("password") ?? "");
 
   const supabase = await createClient();
-  const { data, error } = await supabase.auth.signUp({ email, password });
+
+  // signUp() can throw (rather than return { error }) if the Supabase Auth
+  // API itself is unreachable — a transient network blip between Vercel and
+  // Supabase — rather than a normal validation failure.
+  let data, error;
+  try {
+    ({ data, error } = await supabase.auth.signUp({ email, password }));
+  } catch {
+    redirect("/signup?error=Couldn't connect. Check your internet connection and try again.");
+  }
 
   if (error) {
     redirect(`/signup?error=${encodeURIComponent(error.message)}`);

@@ -15,7 +15,12 @@ export default async function LoginPage({
       <h1 className="mt-2 font-display text-[28px] font-bold text-ink">Log in</h1>
       <p className="mt-2 text-sm text-ink-soft">Welcome back.</p>
 
-      {params.error && (
+      {params.error === "connection" && (
+        <p className="mt-4 text-sm font-medium text-coral-text">
+          Couldn&apos;t connect. Check your internet connection and try again.
+        </p>
+      )}
+      {params.error && params.error !== "connection" && (
         <p className="mt-4 text-sm font-medium text-coral-text">
           Wrong email or password. Try again.
         </p>
