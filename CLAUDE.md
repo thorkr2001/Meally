@@ -205,14 +205,21 @@ one-off use.
 
 ### Deploying to Vercel
 
-Import the GitHub repo at vercel.com/new — Next.js is auto-detected, no
-`vercel.json` needed. Set `DATABASE_URL`, `DIRECT_URL`, `ANTHROPIC_API_KEY`,
-`NEXT_PUBLIC_SUPABASE_URL`, and `NEXT_PUBLIC_SUPABASE_ANON_KEY` in the
-project's Settings → Environment Variables (same values as local `.env`) —
-access control is real Supabase Auth (see "Multi-user via Supabase Auth"
-above), not a shared secret. Then deploy. `package.json`'s
-`postinstall: "prisma generate"` script makes sure the Prisma client
-regenerates on every Vercel build. Four pages (`onboarding`, `plan/review`,
-`meal-plan`, `today`) export `maxDuration = 60` since their Server Actions run
-a `web_search` research call before their forced-tool call, which can
-comfortably exceed most serverless platforms' default function timeout.
+Import the GitHub repo at vercel.com/new — Next.js is auto-detected. Set
+`DATABASE_URL`, `DIRECT_URL`, `ANTHROPIC_API_KEY`, `NEXT_PUBLIC_SUPABASE_URL`,
+and `NEXT_PUBLIC_SUPABASE_ANON_KEY` in the project's Settings → Environment
+Variables (same values as local `.env`) — access control is real Supabase
+Auth (see "Multi-user via Supabase Auth" above), not a shared secret. Then
+deploy. `package.json`'s `postinstall: "prisma generate"` script makes sure
+the Prisma client regenerates on every Vercel build. Four pages (`onboarding`,
+`plan/review`, `meal-plan`, `today`) export `maxDuration = 60` since their
+Server Actions run a `web_search` research call before their forced-tool
+call, which can comfortably exceed most serverless platforms' default
+function timeout.
+
+`vercel.json`'s `regions: ["fra1"]` pins serverless functions to Frankfurt to
+co-locate them with the Supabase project (`eu-central-1`) — every DB/auth
+round-trip crosses the Atlantic twice otherwise (Vercel's un-pinned default
+region is US-based), which was the dominant cause of a slow-server-response
+Lighthouse flag. Keep this in sync with whichever region the Supabase project
+actually lives in if it's ever recreated elsewhere.
