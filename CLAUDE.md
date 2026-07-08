@@ -118,10 +118,23 @@ handlers for app mutations.
   entirely, so it only pays off for repeated calls of the *same* function.
 - `lib/ai/mealPlan.ts` also grounds meal suggestions in real-world data: a
   `researchMealFacts()` call (`web_search`, capped per scope — 2 searches for
-  a single meal, 4 for a day, 10 for a full week) proposes and verifies real
-  dishes' prep time and nutrition *before* the forced-tool call that returns
-  the final `MealResult`(s), so `prepMinutes`/calories are checked against
-  actual sources rather than the model's own guess.
+  a single meal, 4 for a standalone single-day regenerate) proposes and
+  verifies real dishes' prep time and nutrition *before* the forced-tool call
+  that returns the final `MealResult`(s), so `prepMinutes`/calories are
+  checked against actual sources rather than the model's own guess.
+- A full week (`generateMealPlan`/`reviseMealPlan`) is built as 7 independent
+  `Promise.all`-parallel day-level calls (`generateOneDay` /
+  `regenerateDay` with a lower `WEEK_DAY_SEARCH_BUDGET` of 2 searches/day),
+  not one sequential whole-week call — that single-call pipeline reliably
+  took 40-70s, over Vercel's serverless function timeout on the Hobby plan.
+  Wall-clock time is now bounded by the slowest single day, not the sum of
+  all seven, at the cost of each day being planned without visibility into
+  what the others picked (occasional repeated dishes across the week are
+  correspondingly more likely than with one holistic pass). This also
+  structurally guarantees exactly 7 unique `dayOfWeek` values — the code
+  assigns them, not the model — where the old single-call version needed a
+  post-hoc `assertValidWeek` check to catch Claude returning a duplicate or
+  missing day.
 
 ### `lib/session.ts` vs `lib/meals.ts`
 

@@ -36,32 +36,6 @@ export const MEAL_SCHEMA = {
   additionalProperties: false,
 };
 
-const RETURN_MEAL_PLAN_TOOL: Anthropic.Tool = {
-  name: "return_meal_plan",
-  description: "Return a full 7-day meal plan.",
-  strict: true,
-  input_schema: {
-    type: "object",
-    properties: {
-      days: {
-        type: "array",
-        description: "Exactly 7 entries, one per day of the week (dayOfWeek 0-6).",
-        items: {
-          type: "object",
-          properties: {
-            dayOfWeek: { type: "integer", enum: [0, 1, 2, 3, 4, 5, 6], description: "0 = Monday .. 6 = Sunday" },
-            meals: { type: "array", items: MEAL_SCHEMA },
-          },
-          required: ["dayOfWeek", "meals"],
-          additionalProperties: false,
-        },
-      },
-    },
-    required: ["days"],
-    additionalProperties: false,
-  },
-};
-
 const RETURN_SINGLE_MEAL_TOOL: Anthropic.Tool = {
   name: "return_meal",
   description: "Return a single replacement meal.",
@@ -110,26 +84,17 @@ const HARD_CONSTRAINTS_NOTE = `CRITICAL: the conditions and preferences below ar
 
 const REALISM_NOTE = `Ground every meal in a real, well-known named dish (e.g. bolognese, carbonara, butter chicken, chicken tikka masala, beef stew, chicken curry, congee, shepherd's pie, meatball ragu, chicken cacciatore, risotto) adapted to fit the constraints above — do not just combine generic "protein + starch + vegetable" into an unnamed dish. If the user gives a specific example of something they like (e.g. "braised meat is good"), treat it as ONE example of an acceptable style, not a template to repeat for every meal — use it as inspiration for variety, not a rule to copy every day.`;
 
-const VARIETY_NOTE = `Rotate proteins, cooking methods, and cuisines across the week so no two days feel the same — e.g. one day slow-braised beef, another day a minced-meat dish like bolognese, another day a curry, another day roasted tender chicken, another day a soup or stew. Do not repeat the same dish, protein, or cooking method on more than one day of the week.`;
-
 const GROUNDING_NOTE = `Use these SAME dish names, and treat the researched prep+cook time and nutrition figures as ground truth — only lightly scale portions if needed to fit the daily targets (scaling changes nutrition but not cook time). If a dish isn't covered above, estimate conservatively from the closest researched dish rather than guessing from scratch.`;
 
 const USE_RESEARCH_NOTE = `Web-verified reference data for the dishes proposed above (dish name, prep+cook time, and nutrition per serving):`;
 
-// These three variants are each reused verbatim across every call for their
-// scope (full-week / single-meal / single-day), so the prompt-caching
-// breakpoint on the system block that wraps them (see callForToolUse and
-// researchMealFacts) can actually hit on repeated calls of the same kind —
-// e.g. disliking an ingredient present in several meals fires one
-// regenerateMeal per meal, all sharing this exact string.
-function constraintNotesForWeek(): string {
-  return `${HARD_CONSTRAINTS_NOTE} Only fall back to a default of breakfast, lunch, dinner, and one snack per day if nothing above says otherwise.
-
-${REALISM_NOTE}
-
-${VARIETY_NOTE}`;
-}
-
+// These two variants are each reused verbatim across every call for their
+// scope (single-meal / single-day, the latter now also used per-day for
+// full-week generation/revision), so the prompt-caching breakpoint on the
+// system block that wraps them (see callForToolUse and researchMealFacts)
+// can actually hit on repeated calls of the same kind — e.g. disliking an
+// ingredient present in several meals fires one regenerateMeal per meal,
+// all sharing this exact string.
 function constraintNotesForSingleMeal(): string {
   return `${HARD_CONSTRAINTS_NOTE}
 
@@ -163,19 +128,7 @@ function summarizeMeals(meals: MealResult[]): string {
   return meals.map((m) => `${m.type}: ${m.name} (${m.calories} kcal) — ${m.description}`).join("\n");
 }
 
-// The tool schema constrains each dayOfWeek to 0-6, but not the *set* of 7
-// values as a whole — Claude could still return two Wednesdays and no Sunday.
-// Catch that here with a clear error instead of letting it surface as an
-// opaque Prisma unique-constraint crash (MealPlanDay is unique per
-// [mealPlanId, dayOfWeek]) deep inside a $transaction.
-function assertValidWeek(days: MealPlanDayResult[]): void {
-  const seen = new Set(days.map((d) => d.dayOfWeek));
-  if (days.length !== 7 || seen.size !== 7) {
-    throw new Error(
-      `Meal plan must cover exactly 7 unique days (0-6); got: ${days.map((d) => d.dayOfWeek).join(", ")}`
-    );
-  }
-}
+const DAY_NAMES = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
 
 // `systemText` carries every instruction that's byte-identical across every
 // call of this scope (constraints/realism/grounding notes, the final
@@ -256,19 +209,25 @@ async function researchMealFacts(brief: string, maxSearches: number, constraintN
     .join("\n");
 }
 
-export async function generateMealPlan(
+// Per-day search budget when generating/revising a full week — kept low
+// since it's multiplied by 7 parallel calls (see generateMealPlan below);
+// regenerateDay's own default stays higher since there it isn't multiplied.
+const WEEK_DAY_SEARCH_BUDGET = 2;
+
+async function generateOneDay(
+  dayOfWeek: number,
   nutritionPlan: NutritionPlanResult,
   conditions: string[],
   dietaryPreferences: string[],
   dislikedIngredients: string[]
-): Promise<MealPlanResult> {
-  const brief = `Create a 7-day meal plan that hits these daily targets:
+): Promise<MealResult[]> {
+  const brief = `Create a full day of meals (${DAY_NAMES[dayOfWeek]}) for a user with these daily targets:
 ${targetsBlock(nutritionPlan)}
 
 ${constraintsBlock(conditions, dietaryPreferences, dislikedIngredients)}`;
 
-  const constraintNotes = constraintNotesForWeek();
-  const research = await researchMealFacts(brief, 10, constraintNotes);
+  const constraintNotes = constraintNotesForDay();
+  const research = await researchMealFacts(brief, WEEK_DAY_SEARCH_BUDGET, constraintNotes);
 
   const prompt = `${brief}
 
@@ -277,11 +236,33 @@ ${research}`;
 
   const systemText = `${constraintNotes}
 
-${GROUNDING_NOTE} For each meal, list its ingredients (matching the required texture/form). Keep each meal's description to one short sentence. Call return_meal_plan with the complete 7-day plan.`;
+${GROUNDING_NOTE} Keep each meal's description to one short sentence. Call return_day_meals with the complete set of meals for this day.`;
 
-  const result = await callForToolUse<MealPlanResult>(systemText, prompt, RETURN_MEAL_PLAN_TOOL, 12000);
-  assertValidWeek(result.days);
-  return result;
+  const result = await callForToolUse<{ meals: MealResult[] }>(systemText, prompt, RETURN_DAY_MEALS_TOOL, 3000);
+  return result.meals;
+}
+
+export async function generateMealPlan(
+  nutritionPlan: NutritionPlanResult,
+  conditions: string[],
+  dietaryPreferences: string[],
+  dislikedIngredients: string[]
+): Promise<MealPlanResult> {
+  // Generated as 7 independent parallel day-level calls rather than one
+  // sequential whole-week call (research across all 7 days, then a single
+  // 12000-token generation) — that pipeline reliably took 40-70s, over
+  // Vercel's serverless function timeout. Wall-clock time here is bounded by
+  // the slowest single day, not the sum of all seven. Trade-off: each day is
+  // planned without visibility into what the others picked, so occasional
+  // repeated dishes across the week are somewhat more likely than with one
+  // holistic pass.
+  const days = await Promise.all(
+    [0, 1, 2, 3, 4, 5, 6].map(async (dayOfWeek) => ({
+      dayOfWeek,
+      meals: await generateOneDay(dayOfWeek, nutritionPlan, conditions, dietaryPreferences, dislikedIngredients),
+    }))
+  );
+  return { days };
 }
 
 export async function regenerateMeal(
@@ -317,7 +298,8 @@ export async function regenerateDay(
   conditions: string[],
   dietaryPreferences: string[],
   dislikedIngredients: string[],
-  feedback: string
+  feedback: string,
+  maxSearches = 4
 ): Promise<MealResult[]> {
   const brief = `A user's current meals for one day of their weekly meal plan are:
 ${summarizeMeals(currentMeals)}
@@ -329,7 +311,7 @@ ${constraintsBlock(conditions, dietaryPreferences, dislikedIngredients)}
 The user gave this feedback specifically for this day: "${feedback}"`;
 
   const constraintNotes = constraintNotesForDay();
-  const research = await researchMealFacts(brief, 4, constraintNotes);
+  const research = await researchMealFacts(brief, maxSearches, constraintNotes);
 
   const prompt = `${brief}
 
@@ -352,35 +334,22 @@ export async function reviseMealPlan(
   dislikedIngredients: string[],
   feedback: string
 ): Promise<MealPlanResult> {
-  const dayNames = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
-  const currentSummary = currentPlan.days
-    .map((day) => `${dayNames[day.dayOfWeek]}:\n${summarizeMeals(day.meals)}`)
-    .join("\n\n");
-
-  const brief = `A user's current 7-day meal plan is:
-${currentSummary}
-
-${targetsBlock(nutritionPlan)}
-
-${constraintsBlock(conditions, dietaryPreferences, dislikedIngredients)}
-
-The user gave this feedback on the whole week: "${feedback}"`;
-
-  const constraintNotes = constraintNotesForWeek();
-  const research = await researchMealFacts(brief, 10, constraintNotes);
-
-  const prompt = `${brief}
-
-${USE_RESEARCH_NOTE}
-${research}
-
-Rebuild the complete 7-day plan to address the feedback while still hitting the daily targets in aggregate.`;
-
-  const systemText = `${constraintNotes}
-
-${GROUNDING_NOTE} For each meal, list its ingredients (matching the required texture/form). Keep each meal's description to one short sentence. Call return_meal_plan with the complete 7-day plan.`;
-
-  const result = await callForToolUse<MealPlanResult>(systemText, prompt, RETURN_MEAL_PLAN_TOOL, 12000);
-  assertValidWeek(result.days);
-  return result;
+  // Same parallel-per-day restructuring as generateMealPlan and for the
+  // same reason — the whole-week feedback is passed to every day's own
+  // regenerateDay call, run concurrently.
+  const days = await Promise.all(
+    currentPlan.days.map(async (day) => ({
+      dayOfWeek: day.dayOfWeek,
+      meals: await regenerateDay(
+        day.meals,
+        nutritionPlan,
+        conditions,
+        dietaryPreferences,
+        dislikedIngredients,
+        feedback,
+        WEEK_DAY_SEARCH_BUDGET
+      ),
+    }))
+  );
+  return { days };
 }
