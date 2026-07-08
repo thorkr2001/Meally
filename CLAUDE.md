@@ -225,10 +225,16 @@ Variables (same values as local `.env`) — access control is real Supabase
 Auth (see "Multi-user via Supabase Auth" above), not a shared secret. Then
 deploy. `package.json`'s `postinstall: "prisma generate"` script makes sure
 the Prisma client regenerates on every Vercel build. Four pages (`onboarding`,
-`plan/review`, `meal-plan`, `today`) export `maxDuration = 60` since their
+`plan/review`, `meal-plan`, `today`) export `maxDuration = 300` since their
 Server Actions run a `web_search` research call before their forced-tool
-call, which can comfortably exceed most serverless platforms' default
-function timeout.
+call — a single day's research+generate pipeline has been observed taking
+close to a minute even after parallelizing full-week generation across
+days (see `lib/ai/mealPlan.ts`), so this needs real headroom, not just past
+a default. **The code's `maxDuration` and the Vercel dashboard's Function
+Max Duration setting cap each other** (the enforced limit is whichever is
+lower) — this project uses Fluid Compute, so raise the dashboard setting to
+300s (or whatever it allows) to match, or the code-side value alone won't
+help.
 
 `vercel.json`'s `regions: ["fra1"]` pins serverless functions to Frankfurt to
 co-locate them with the Supabase project (`eu-central-1`) — every DB/auth

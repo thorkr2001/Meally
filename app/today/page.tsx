@@ -19,9 +19,10 @@ import { removeMeal } from "@/app/meal-plan/actions";
 
 export const dynamic = "force-dynamic";
 // importRecipeAction's web_fetch + logQuickMeal's estimate call can both run
-// long enough to need headroom past most serverless platforms' default
-// function timeout.
-export const maxDuration = 60;
+// long enough to need real headroom past the default timeout. Requires this
+// project's Vercel dashboard Function Max Duration to be raised to match
+// (see app/meal-plan/page.tsx for why).
+export const maxDuration = 300;
 
 function greeting(): string {
   const hour = new Date().getHours();

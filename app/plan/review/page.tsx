@@ -4,9 +4,11 @@ import { updatePlan, revisePlan, acceptPlan } from "./actions";
 import { SubmitButton } from "@/components/SubmitButton";
 
 export const dynamic = "force-dynamic";
-// revisePlan's reviseNutritionPlan call can run long enough to need headroom
-// past most serverless platforms' default function timeout.
-export const maxDuration = 60;
+// revisePlan's reviseNutritionPlan call can run long enough to need real
+// headroom past the default timeout. Requires this project's Vercel
+// dashboard Function Max Duration to be raised to match (see
+// app/meal-plan/page.tsx for why).
+export const maxDuration = 300;
 
 const inputClass =
   "rounded-xl border-[1.5px] border-border-light px-3.5 py-2.5 text-sm font-sans focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-1";

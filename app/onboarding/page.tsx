@@ -5,9 +5,10 @@ import { createProfile, retryNutritionPlan } from "./actions";
 import { SubmitButton } from "@/components/SubmitButton";
 
 // createProfile's nutrition-plan generation does a web_search research call
-// before its forced-tool call — comfortably past most serverless platforms'
-// default function timeout, so this page's actions need explicit headroom.
-export const maxDuration = 60;
+// before its forced-tool call — needs real headroom past the default
+// timeout. Requires this project's Vercel dashboard Function Max Duration
+// to be raised to match (see app/meal-plan/page.tsx for why).
+export const maxDuration = 300;
 export const dynamic = "force-dynamic";
 
 const inputClass =

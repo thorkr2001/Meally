@@ -12,10 +12,14 @@ import { ConfirmForm } from "@/components/ConfirmForm";
 import { MealPlanDays } from "@/components/MealPlanDays";
 
 export const dynamic = "force-dynamic";
-// Full-week generation/revision runs a web_search research pass (up to 10
-// searches) before the forced-tool call that returns the plan — comfortably
-// past most serverless platforms' default function timeout without this.
-export const maxDuration = 60;
+// Full-week generation/revision fans out into 7 parallel per-day AI calls
+// (web_search research + a forced tool call each) — even in parallel, a
+// single day's pipeline has been observed taking close to a minute, so this
+// needs real headroom past the old 60s default. Requires this project's
+// Vercel dashboard Function Max Duration to be raised to match (Fluid
+// Compute's standard ceiling) — code and dashboard settings are each other's
+// cap, so raising only one does nothing.
+export const maxDuration = 300;
 
 export default async function MealPlanPage() {
   const profile = await getProfile();
